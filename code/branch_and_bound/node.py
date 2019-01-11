@@ -1,10 +1,10 @@
 class Node:
     number = 0
-
-    def __init__(self, equations, father=None):
+    solution_type = "minimize"
+    def __init__(self, equation, father=None):
         self.father = father
-        self.equations = equations
-        if equations.is_integer_sulotion():
+        self.equation = equation
+        if equation.is_integer_solution():
             self.sons = [None, None]
         else:
             self.sons = [-1,-1]
@@ -44,6 +44,10 @@ class Node:
         return not (self.get_left_son() or self.get_right_son())
 
 
+    def get_equations(self):
+        return self.equation
+
+
     def get_left_son(self):
         """
         return node's left son
@@ -65,7 +69,7 @@ class Node:
         return node's value, which  calculeted at Equations
         return: float
         """
-        return self.equations.get_solution()
+        return self.equation.get_solution()
 
 
     def __lt__(self, other):
@@ -74,7 +78,10 @@ class Node:
         return True is this node less the other node, Flase otherwise
         return: boolean
         """
-        return other.get_value() > self.get_value()
+        if Node.solution_type == "minimize":
+            return other.get_value() > self.get_value() # minimize
+        else:
+            return other.get_value() < self.get_value() # maximize
 
 
     def __str__(self):
@@ -89,6 +96,6 @@ class Node:
                 sons_data += "\n{}\t{}".format(tabs, son)
             sons_data += "\n{}]".format(tabs)
         if self.father is None:
-            return "node {}: father = {}, equations = {}, sons = {}".format(self.name, self.father, self.equations, sons_data)
+            return "node {}: father = {}, equations = {}, sons = {}".format(self.name, self.father, self.equation.get_solution(), sons_data)
         else:
-            return "node {}: father = {}, equations = {}, sons = {}".format(self.name, self.father.name, self.equations, sons_data)
+            return "node {}: father = {}, equations = {}, sons = {}".format(self.name, self.father.name, self.equation.get_solution(), sons_data)

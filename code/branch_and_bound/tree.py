@@ -2,8 +2,9 @@ from bisect import insort
 from node import Node
 
 class Tree:
-    def __init__(self, equations):
-        self.root = Node(equations)
+    def __init__(self, equation, solution_type="minimize"):
+        Node.solution_type = solution_type
+        self.root = Node(equation)
         self.queue = [self.root]
 
 
@@ -17,7 +18,7 @@ class Tree:
         return: none
         """
         left = Node(left_equations, father)
-        right = Node(right_equations, father)           
+        right = Node(right_equations, father)
         father.add_sons(left, right)
         if not left.is_leaf():
             insort(self.queue, left)
