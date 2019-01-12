@@ -1,8 +1,7 @@
 from resource_usage import Resource_usage
 
 class Resource:
-	def __init__(self, name, number):
-		self.name = name
+	def __init__(self, number):
 		self.number = number
 		self.size = 0
 		self.usage = {}
@@ -36,5 +35,4 @@ class Resource:
 		usage = ""
 		for key, value in self.usage.items():
 			usage += "\toperation_mode({}): {}\n".format(key, value)
-		return "#{}){}: size = {}, usage by: \n{}".format(self.number,
-			self.name, self.size, usage)
+		return "{}: size = {}, usage by: \n{}".format(self.number, self.size, usage)
