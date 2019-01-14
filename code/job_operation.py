@@ -19,4 +19,7 @@ class Operation:
         self.global_start_time = global_start_time
 
     def __str__(self):
-        return "{}: {}\n".format(self.num_of_op, self.modes)
+        string = ""
+        for mode in self.modes:
+            string += "\n\t" + str(mode)
+        return "operation = {}: modes = {}".format(self.num_of_op, string)

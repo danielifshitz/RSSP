@@ -1,5 +1,5 @@
-from resource import Resource
-from operation import Operation
+from job_operation import Operation
+from job_resource import Resource
 import sys
 import csv
 
@@ -11,12 +11,13 @@ class Job:
         self.resources = {}
         self.operations = {}
         self.preferences = {}
+        self.__initialize()
+        self.__find_rtag_tim()
 
-    def initialize(self):
+    def __initialize(self):
         with open(self.path, mode='r') as csv_file:
             csv_reader = csv.DictReader(csv_file)
-            for row in csv_reader[1:]:
-                print(row)
+            for row in csv_reader:
                 if row["resource"] not in self.resources:
                     self.resources[row["resource"]] = Resource(row["resource"])
                 if row["operation"] not in self.operations:
@@ -24,9 +25,17 @@ class Job:
                 self.operations[row["operation"]].add_mode_to_operation(row["mode"], self.resources[row["resource"]], row["start"], row["duration"])
                 self.preferences[row["preferences"]] = row["preferences"].split(";")
 
+    def __find_rtag_tim(self):
+        for op in self.operations:
+            for mode in op.modes:
+                mode.find_rtag()
+                mode.find_tim()
 
     def __str__(self):
-        return str(self.operations)
+        string = ""
+        for key, value in self.operations.items():
+            string += str(key) + " : { " + str(value) + " \n}\n"
+        return string
 
-gob1 = Job("data.csv")
+ob1 = Job("data.csv")
 print(gob1)

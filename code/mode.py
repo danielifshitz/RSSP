@@ -1,4 +1,3 @@
-
 class Mode:
     def __init__(self, num_mode, op_num):
 
@@ -8,12 +7,10 @@ class Mode:
         self.r_tag = None
         self.tim = 0
 
-
     def add_info_to_mode(self, resource, resource_start, resource_dur):
         self.needed_resources.append(resource)
         om = self.op_num + ',' + self.num_mode
         resource.add_mode(om, resource_start, resource_dur)
-
 
     def find_rtag(self):
         min = float('inf')
@@ -21,7 +18,6 @@ class Mode:
             if resource.size < min:
                 min = resource.size
                 self.r_tag = resource
-
 
     def find_tim(self):
         max = 0
@@ -37,4 +33,7 @@ class Mode:
         return self.tim
 
     def __str__(self):
-        return "num mode - {} , num op - {} , resources - {}\n".format(self.num_mode, self.op_num, self.needed_resources)
+        string = ""
+        for res in self.needed_resources:
+            string += "\n\t\t" + str(res)
+        return "num_mode = {} , num_op = {} , resources = {}".format(self.num_mode, self.op_num, string)

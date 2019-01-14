@@ -28,11 +28,11 @@ class Resource:
 		else:
 			self.usage[operation_mode] = Resource_usage(start_time, duration)
 			self.size += 1
-			print("{} was seccesfuly added".format(operation_mode))
+			#print("{} was seccesfuly added".format(operation_mode))
 
 
 	def __str__(self):
 		usage = ""
 		for key, value in self.usage.items():
-			usage += "\toperation_mode({}): {}\n".format(key, value)
-		return "{}: size = {}, usage by: \n{}".format(self.number, self.size, usage)
+			usage += "\n\t\t\toperation_mode({}): {}".format(key, value)
+		return "{}: size = {}, usage by: {}".format(self.number, self.size, usage)
