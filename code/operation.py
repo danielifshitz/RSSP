@@ -17,3 +17,6 @@ class Operation:
 
     def set_global_start_time(self, global_start_time):
         self.global_start_time = global_start_time
+
+    def __str__(self):
+        return "{}: {}\n".format(self.num_of_op, self.modes)

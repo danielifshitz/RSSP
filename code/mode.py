@@ -35,3 +35,6 @@ class Mode:
 
     def get_tim(self):
         return self.tim
+
+    def __str__(self):
+        return "num mode - {} , num op - {} , resources - {}\n".format(self.num_mode, self.op_num, self.needed_resources)
