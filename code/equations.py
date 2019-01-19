@@ -39,7 +39,7 @@ def third_equations(resources):
 def Fourth_equations(operations, preferences):
     string = ""
     for op_num, preferences in preferences.items():
-        if preferences != None: # check if the operation haven't preferences
+        if preferences != None: # check if the operation have preferences
             for preference_op in preferences:
                 string += " + T" + str(preference_op.num_of_op)
                 for mode in preference_op.modes:
