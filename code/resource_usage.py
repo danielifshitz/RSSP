@@ -9,30 +9,9 @@ class Resource_usage:
 		"""
 		set the starting global time of resource use.
 		global_start_time: float
-		return: none
+		return: None
 		"""
 		self.global_start_time = global_start_time
-
-
-	def get_start_time(self):
-		"""
-		return: float
-		"""
-		return self.start_time
-
-
-	def get_duration(self):
-		"""
-		return: float
-		"""
-		return self.duration
-
-
-	def get_global_start_time(self):
-		"""
-		return: float
-		"""
-		return self.global_start_time
 
 
 	def __str__(self):

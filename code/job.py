@@ -11,23 +11,14 @@ class Job:
         self.resources = {}
         self.operations = {}
         self.preferences = {}
-        self.cplex = {}
-        self.initialize()
+        self.cplex = {'obj' : [], 'ub' : [], 'lb' : [], 'ctype' : "", 'colnames' : [], 'rhs' : [], 
+                      'rownames' : [], 'sense' : "", 'rows' : [], 'cols' : [], 'vals' : []}
+        self.csv_problem()
 
-    def __create_cplex(self):
-        self.cplex["obj"] = []
-        self.cplex["ub"] = []
-        self.cplex["lb"] = []
-        self.cplex["ctype"] = ""
-        self.cplex["colnames"] = []
-        self.cplex["rhs"] = []
-        self.cplex["rownames"] = []
-        self.cplex["sense"] = ""
-        self.cplex["rows"] = []
-        self.cplex["cols"] = []
-        self.cplex["vals"] = []
-
-    def initialize(self):
+    def csv_problem(self):
+        """
+        read from csv file the problem and initialize job attributes
+        """
         with open(self.path, mode='r') as csv_file:
             csv_reader = csv.DictReader(csv_file)
             for row in csv_reader:
@@ -50,17 +41,23 @@ class Job:
                     self.preferences[op] = list(set(preferences))
 
         # create dictionary for cplex
-        self.__create_cplex()
         self.__find_rtag_tim()
         self.__init_cplex_variable_parameters()
 
     def __find_rtag_tim(self):
+        """
+        set the r' and the Tim for all modes
+        return: None
+        """
         for op in self.operations.values():
             for mode in op.modes:
                 mode.find_rtag()
                 mode.find_tim()
 
     def __init_cplex_variable_parameters(self):
+        """
+        initialize cplex data according to the problem data
+        """
         # add all Xi,m,r,l to colnames list
         for operation in self.operations.values():
             for mode in operation.modes:
@@ -105,8 +102,9 @@ class Job:
         return string
 
 job1 = Job("data.csv")
-# print (job1.preferences)
 # print(job1)
+# print (job1.preferences)
+# print(job1.cplex)
 # equations.first_equations(job1.operations)
 # equations.second_equations(job1.operations)
 # equations.third_equations(job1.resources)

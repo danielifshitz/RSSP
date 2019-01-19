@@ -7,21 +7,14 @@ class Resource:
 		self.usage = {}
 
 
-	def get_size(self):
-		"""
-		return the number of operation_mode use this resource == |L(r)|.
-		return: int
-		"""
-		return self.size
-
-
 	def add_mode(self, operation, mode, start_time, duration):
 		"""
 		add mode that use this resource.
-		operation_mode: string, receive in next format: (operation number, mode number)
+		operation : string, operatoin number 
+		mode: string, mode number
 		start_time: float, The start time of resource use
 		duration: float, the duration of the use
-		return: none
+		return: None
 		"""
 		op_mode = operation + ',' + mode
 		if op_mode in self.usage:
@@ -34,7 +27,6 @@ class Resource:
 				if op == operation and mo != mode:
 					return
 			self.size += 1
-			#print("{} was seccesfuly added".format(operation_mode))
 
 
 	def __str__(self):
