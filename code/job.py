@@ -67,6 +67,7 @@ class Job:
                         name = "X{},{},{},{}".format(operation.num_of_op, mode.num_mode, resource.number, index)
                         self.cplex["colnames"].append(name)
 
+        x_i_m_r_l_len = len(self.cplex["colnames"])
         # add all Ti to colnames list
         for index in range(1, len(self.operations) + 1):
             name = "T" + str(index)
@@ -87,8 +88,9 @@ class Job:
         # initialize lb
         self.cplex["lb"] = [0] * len(self.cplex["colnames"])
 
-        # initialize ub
-        self.cplex["ub"] = [1] * (len(self.cplex["colnames"]) - 1)
+        # initialize ub - Ximrl ub is 1. Ti and Tim and C ub is infinity
+        self.cplex["ub"] = [1] * x_i_m_r_l_len
+        self.cplex["ub"] += [cplex.infinity] * (len(self.cplex["colnames"]) - 1 - x_i_m_r_l_len)
         self.cplex["ub"].append(cplex.infinity)
 
         # initialize obj
@@ -104,7 +106,7 @@ class Job:
 job1 = Job("data.csv")
 # print(job1)
 # print (job1.preferences)
-# print(job1.cplex)
+print(job1.cplex)
 # equations.first_equations(job1.operations)
 # equations.second_equations(job1.operations)
 # equations.third_equations(job1.resources)
