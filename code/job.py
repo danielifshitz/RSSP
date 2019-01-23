@@ -104,11 +104,8 @@ class Job:
         return string
 
 job1 = Job("data.csv")
-# print(job1)
-# print (job1.preferences)
-# print(job1.cplex)
 equations.first_equations(job1.operations, job1.cplex)
 equations.second_equations(job1.operations, job1.cplex)
-# equations.third_equations(job1.resources, job1.cplex)
-# equations.Fourth_equations(job1.operations, job1.preferences, job1.cplex)
+equations.third_equations(job1.resources, job1.cplex)
+equations.Fourth_equations(job1.operations, job1.preferences, job1.cplex)
 print(job1.cplex)
