@@ -3,6 +3,9 @@ from job_resource import Resource
 import equations
 import csv
 import cplex
+import sys
+from branch_and_bound import B_and_B
+from cplex_equations import Equations
 
 class Job:
     def __init__(self, csv_path):
@@ -83,7 +86,7 @@ class Job:
         self.cplex["colnames"].append("C")
 
         # initialize ctype
-        self.cplex["ctype"] = 'c' * len(self.cplex["colnames"])
+        self.cplex["ctype"] = 'C' * len(self.cplex["colnames"])
 
         # initialize lb
         self.cplex["lb"] = [0] * len(self.cplex["colnames"])
@@ -109,3 +112,6 @@ equations.second_equations(job1.operations, job1.cplex)
 equations.third_equations(job1.resources, job1.cplex)
 equations.Fourth_equations(job1.operations, job1.preferences, job1.cplex)
 print(job1.cplex)
+# eq = Equations(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"], job1.cplex["ctype"], job1.cplex["colnames"], job1.cplex["rhs"], job1.cplex["rownames"], job1.cplex["sense"], job1.cplex["rows"], job1.cplex["cols"], job1.cplex["vals"])
+# BB = B_and_B(eq)
+# BB.solve_algorithem()
