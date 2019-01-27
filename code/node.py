@@ -1,6 +1,8 @@
 class Node:
+
     number = 0
     solution_type = "minimize"
+
     def __init__(self, equation, father=None):
         self.father = father
         self.equation = equation
@@ -88,9 +90,7 @@ class Node:
         if self.is_leaf():
             sons_data = "None"
         else:
-            tabs = ""
-            for i in range(0, self.depth):
-                tabs += "\t"
+            tabs = "\t" * self.depth
             sons_data = "["
             for son in self.sons:
                 sons_data += "\n{}\t{}".format(tabs, son)

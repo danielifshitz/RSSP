@@ -2,10 +2,14 @@ from bisect import insort
 from node import Node
 
 class Tree:
+
     def __init__(self, equation, solution_type="minimize"):
         Node.solution_type = solution_type
         self.root = Node(equation)
-        self.queue = [self.root]
+        if self.root.equation.integer_solution:
+            self.queue = []
+        else:
+            self.queue = [self.root]
 
 
     def add_nodes(self, father, left_equations, right_equations):

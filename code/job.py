@@ -1,13 +1,14 @@
-from job_operation import Operation
-from job_resource import Resource
-import equations
 import csv
 import cplex
 import sys
+import time
+import equations
+from job_operation import Operation
+from job_resource import Resource
 from branch_and_bound import B_and_B
-from cplex_equations import Equations
 
 class Job:
+
     def __init__(self, csv_path):
         self.path = csv_path
         self.N = 1e6
@@ -90,9 +91,9 @@ class Job:
         self.cplex["colnames"].append("F")
 
         # initialize ctype - b&b solution
-        self.cplex["ctype"] = 'C' * len(self.cplex["colnames"])
-        # self.cplex["ctype"] = 'B' * x_i_m_r_l_len
-        # self.cplex["ctype"] += 'C' * (len(self.cplex["colnames"]) - x_i_m_r_l_len)
+        # self.cplex["ctype"] = 'C' * len(self.cplex["colnames"])
+        self.cplex["ctype"] = 'B' * x_i_m_r_l_len
+        self.cplex["ctype"] += 'C' * (len(self.cplex["colnames"]) - x_i_m_r_l_len)
 
         # initialize lb
         self.cplex["lb"] = [0] * len(self.cplex["colnames"])
@@ -129,6 +130,9 @@ equations.fifth_equations(job1.resources, job1.cplex)
 equations.sixth_equations(job1.operations, job1.N, job1.cplex)
 equations.seventh_equations(job1.operations, job1.cplex)
 # print(job1.cplex)
-eq = Equations(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"], job1.cplex["ctype"], job1.cplex["colnames"], job1.cplex["rhs"], job1.cplex["rownames"], job1.cplex["sense"], job1.cplex["rows"], job1.cplex["cols"], job1.cplex["vals"], job1.x_names, len(job1.x_names), {})
-BB = B_and_B(eq, job1.UB)
+print("starting solve")
+start = time.time()
+BB = B_and_B(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"], job1.cplex["ctype"], job1.cplex["colnames"], job1.cplex["rhs"], job1.cplex["rownames"], job1.cplex["sense"], job1.cplex["rows"], job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB)
 BB.solve_algorithem()
+end = time.time()
+print("solution time is ", end - start)

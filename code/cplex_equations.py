@@ -2,10 +2,12 @@ import cplex
 from cplex.exceptions import CplexError
 
 class Equations:
-    No_solution_exists = float('inf')
 
     def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, cols_to_remove, num_of_x, choices):
         self.prob = cplex.Cplex()
+        self.prob.set_warning_stream(None)
+        self.prob.set_results_stream(None)
+        self.prob.set_error_stream(None)
         self.obj = obj
         self.ub = ub
         self.lb = lb
@@ -84,7 +86,11 @@ class Equations:
         numcols = self.prob.variables.get_num()
         x = self.prob.solution.get_values()
         for j in range(numcols):
-            print("variable %s:  Value = %10f" % (self.colnames[j], x[j]))
+            if self.colnames[j] in self.choices:
+                print("variable %s:  Value = %10f" % (self.colnames[j], self.choices[self.colnames[j]]))
+            else:
+                self.choices[self.colnames[j]] = x[j]
+                print("variable %s:  Value = %10f" % (self.colnames[j], x[j]))
         print(self.choices)
         self.prob.write("solution.lp")
 
@@ -112,11 +118,9 @@ class Equations:
             else:
                 index += 1
         equations = []
-        equations.append(Equations(self.obj, self.ub, self.lb, self.ctype,
-                                                   self.colnames, zero_rhs, self.rownames,
+        equations.append(Equations(self.obj, self.ub, self.lb, self.ctype,self.colnames, zero_rhs, self.rownames,
                                                    self.sense, rows, cols, vals, cols_to_remove, self.num_of_x, zero_choices))
-        equations.append(Equations(self.obj, self.ub, self.lb, self.ctype,
-                                                   self.colnames, one_rhs, self.rownames,
+        equations.append(Equations(self.obj, self.ub, self.lb, self.ctype,self.colnames, one_rhs, self.rownames,
                                                    self.sense, rows, cols, vals, cols_to_remove, self.num_of_x, one_choices))
         return equations
 

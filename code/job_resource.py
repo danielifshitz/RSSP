@@ -1,6 +1,7 @@
 from resource_usage import Resource_usage
 
 class Resource:
+
     def __init__(self, number):
         self.number = number
         self.size = 0

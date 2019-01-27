@@ -1,5 +1,6 @@
 from mode import Mode
 class Operation:
+
     def __init__(self, num_of_op):
         self.num_of_op = num_of_op
         self.modes = []

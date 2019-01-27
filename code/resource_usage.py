@@ -1,4 +1,5 @@
 class Resource_usage:
+
     def __init__(self, start_time, duration):
         self.start_time = start_time
         self.duration = duration

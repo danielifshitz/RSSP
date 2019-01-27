@@ -1,13 +1,15 @@
+from cplex_equations import Equations
 from tree import Tree
+
 class B_and_B():
 
-    def __init__(self, equation, UB=None, solution_type="minimize"):
+    def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, UB=None, solution_type="minimize"):
         self.best_equation = None
-        self.equation = equation
+        self.equation = Equations(obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, len(x_names), {})
         self.solution_type = solution_type
-        self.LB = equation.solve_milp()
-        equation.prob.write("file.lp")
-        input("press any key to continue 1")
+        self.LB = self.equation.solve_milp()
+        self.equation.prob.write("file.lp")
+        # input("press any key to continue 1")
         if UB:
             self.UB = UB
         else:
@@ -15,9 +17,9 @@ class B_and_B():
                 self.UB = float("inf")
             elif solution_type == "maximize":
                 self.UB = -float("inf")
-        if equation.is_integer_solution():
-            self.__update_UB(equation)
-        self.tree = Tree(equation, solution_type)
+        if self.equation.is_integer_solution():
+            self.__update_UB(self.equation)
+        self.tree = Tree(self.equation, solution_type)
         #print("LB = ", self.LB, ", UB = ", self.UB, "\n", self.tree)
         #input("press any key to continue 2")
 
@@ -93,5 +95,4 @@ class B_and_B():
                 # input("press any key to continue 7")
                 next_node = self.__try_bound()
         #print("LB = ", self.LB, ", UB = ", self.UB, "\n", self.tree)
-        print("UB = ", self.UB)
         self.best_equation.print_cplex_solution()

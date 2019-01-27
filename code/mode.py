@@ -1,4 +1,5 @@
 class Mode:
+
     def __init__(self, num_mode, op_num):
         self.num_mode = num_mode
         self.op_num = op_num
