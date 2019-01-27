@@ -10,12 +10,14 @@ from cplex_equations import Equations
 class Job:
     def __init__(self, csv_path):
         self.path = csv_path
-        self.N = cplex.infinity
+        self.N = 1e6
         self.resources = {}
         self.operations = {}
         self.preferences = {}
         self.cplex = {'obj' : [], 'ub' : [], 'lb' : [], 'ctype' : "", 'colnames' : [], 'rhs' : [], 
                       'rownames' : [], 'sense' : "", 'rows' : [], 'cols' : [], 'vals' : []}
+        self.x_names = []
+        self.UB = 0
         self.csv_problem()
 
     def csv_problem(self):
@@ -46,6 +48,7 @@ class Job:
         # create dictionary for cplex
         self.__find_rtag_tim()
         self.__init_cplex_variable_parameters()
+        self.__find_UB()
 
     def __find_rtag_tim(self):
         """
@@ -70,6 +73,7 @@ class Job:
                         name = "X{},{},{},{}".format(operation.num_of_op, mode.num_mode, resource.number, index)
                         self.cplex["colnames"].append(name)
 
+        self.x_names = self.cplex["colnames"][:]
         x_i_m_r_l_len = len(self.cplex["colnames"])
         # add all Ti to colnames list
         for index in range(1, len(self.operations) + 1):
@@ -83,22 +87,32 @@ class Job:
                 self.cplex["colnames"].append(name)
 
         # add C to colnames list
-        self.cplex["colnames"].append("C")
+        self.cplex["colnames"].append("F")
 
-        # initialize ctype
+        # initialize ctype - b&b solution
         self.cplex["ctype"] = 'C' * len(self.cplex["colnames"])
+        # self.cplex["ctype"] = 'B' * x_i_m_r_l_len
+        # self.cplex["ctype"] += 'C' * (len(self.cplex["colnames"]) - x_i_m_r_l_len)
 
         # initialize lb
         self.cplex["lb"] = [0] * len(self.cplex["colnames"])
 
         # initialize ub - Ximrl ub is 1. Ti and Tim and C ub is infinity
         self.cplex["ub"] = [1] * x_i_m_r_l_len
-        self.cplex["ub"] += [cplex.infinity] * (len(self.cplex["colnames"]) - 1 - x_i_m_r_l_len)
-        self.cplex["ub"].append(cplex.infinity)
+        self.cplex["ub"] += [cplex.infinity] * (len(self.cplex["colnames"]) - x_i_m_r_l_len)
 
         # initialize obj
         self.cplex["obj"] = [0] * (len(self.cplex["colnames"]) - 1)
         self.cplex["obj"].append(1)
+
+    def __find_UB(self):
+        for operation in self.operations.values():
+            max_t_im = 0
+            for mode in operation.modes:
+                if mode.tim > max_t_im:
+                    max_t_im = mode.tim
+            self.UB += max_t_im
+
 
     def __str__(self):
         string = ""
@@ -110,8 +124,11 @@ job1 = Job("data.csv")
 equations.first_equations(job1.operations, job1.cplex)
 equations.second_equations(job1.operations, job1.cplex)
 equations.third_equations(job1.resources, job1.cplex)
-equations.Fourth_equations(job1.operations, job1.preferences, job1.cplex)
-print(job1.cplex)
-# eq = Equations(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"], job1.cplex["ctype"], job1.cplex["colnames"], job1.cplex["rhs"], job1.cplex["rownames"], job1.cplex["sense"], job1.cplex["rows"], job1.cplex["cols"], job1.cplex["vals"])
-# BB = B_and_B(eq)
-# BB.solve_algorithem()
+equations.fourth_equations(job1.operations, job1.preferences, job1.cplex)
+equations.fifth_equations(job1.resources, job1.cplex)
+equations.sixth_equations(job1.operations, job1.N, job1.cplex)
+equations.seventh_equations(job1.operations, job1.cplex)
+# print(job1.cplex)
+eq = Equations(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"], job1.cplex["ctype"], job1.cplex["colnames"], job1.cplex["rhs"], job1.cplex["rownames"], job1.cplex["sense"], job1.cplex["rows"], job1.cplex["cols"], job1.cplex["vals"], job1.x_names, len(job1.x_names), {})
+BB = B_and_B(eq, job1.UB)
+BB.solve_algorithem()

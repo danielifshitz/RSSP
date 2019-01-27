@@ -3,6 +3,7 @@ class Operation:
     def __init__(self, num_of_op):
         self.num_of_op = num_of_op
         self.modes = []
+        self.all_resources = {}
         self.global_start_time = -1
 
     def add_mode_to_operation(self,num_mode,resource,start,dur):
@@ -17,10 +18,18 @@ class Operation:
         for mode in self.modes:
             if mode.num_mode == num_mode: # mode is exists
                 mode.add_resource(resource, start, dur)
+                if resource not in self.all_resources:
+                    self.all_resources[resource] = [num_mode]
+                else:
+                    self.all_resources[resource].append(num_mode)
                 return
         mode = Mode(num_mode,self.num_of_op)
         mode.add_resource(resource, start, dur)
         self.modes.append(mode)
+        if resource not in self.all_resources:
+            self.all_resources[resource] = [num_mode]
+        else:
+            self.all_resources[resource].append(num_mode)
 
     def set_global_start_time(self, global_start_time):
         self.global_start_time = global_start_time

@@ -4,7 +4,7 @@ from cplex.exceptions import CplexError
 class Equations:
     No_solution_exists = float('inf')
 
-    def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals):
+    def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, cols_to_remove, num_of_x, choices):
         self.prob = cplex.Cplex()
         self.obj = obj
         self.ub = ub
@@ -17,6 +17,9 @@ class Equations:
         self.rows = rows
         self.cols = cols
         self.vals = vals
+        self.cols_to_remove = cols_to_remove
+        self.num_of_x = num_of_x
+        self.choices = choices
         self.integer_solution = False
         self.solution = None
 
@@ -65,7 +68,11 @@ class Equations:
             # print("variable %d:  Value = %10f" % (j, x[j]))
             if not x[j].is_integer():
                 self.integer_solution = False
-
+            if j >= self.num_of_x - 1:
+                break
+        # print(x)
+        # print(self.integer_solution)
+        # print(self.num_of_x)
         return self.solution
 
     
@@ -77,15 +84,24 @@ class Equations:
         numcols = self.prob.variables.get_num()
         x = self.prob.solution.get_values()
         for j in range(numcols):
-            print("variable %d:  Value = %10f" % (j, x[j]))
+            print("variable %s:  Value = %10f" % (self.colnames[j], x[j]))
+        print(self.choices)
+        self.prob.write("solution.lp")
 
 
-    def create_sons_equations(self, variable_id=0):
+    def create_sons_equations(self, col_name):
+        cols_to_remove = self.cols_to_remove[:]
         zero_rhs = self.rhs[:]
         one_rhs = self.rhs[:]
         cols = self.cols[:]
         rows = self.rows[:]
         vals = self.vals[:]
+        zero_choices = self.choices.copy()
+        zero_choices[col_name] = 0
+        one_choices = self.choices.copy()
+        one_choices[col_name] = 1
+        cols_to_remove.remove(col_name)
+        variable_id = self.colnames.index(col_name)
         index = 0
         while index < len(cols):
             if cols[index] == variable_id:
@@ -98,10 +114,10 @@ class Equations:
         equations = []
         equations.append(Equations(self.obj, self.ub, self.lb, self.ctype,
                                                    self.colnames, zero_rhs, self.rownames,
-                                                   self.sense, rows, cols, vals))
+                                                   self.sense, rows, cols, vals, cols_to_remove, self.num_of_x, zero_choices))
         equations.append(Equations(self.obj, self.ub, self.lb, self.ctype,
                                                    self.colnames, one_rhs, self.rownames,
-                                                   self.sense, rows, cols, vals))
+                                                   self.sense, rows, cols, vals, cols_to_remove, self.num_of_x, one_choices))
         return equations
 
 

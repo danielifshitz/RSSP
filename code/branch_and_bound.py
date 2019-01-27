@@ -1,17 +1,20 @@
 from tree import Tree
 class B_and_B():
-    variable_id_to_set = 0
 
-    def __init__(self, equation, solution_type="minimize"):
+    def __init__(self, equation, UB=None, solution_type="minimize"):
         self.best_equation = None
         self.equation = equation
         self.solution_type = solution_type
         self.LB = equation.solve_milp()
-        #input("press any key to continue 1")
-        if solution_type == "minimize":
-            self.UB = float("inf")
-        elif solution_type == "maximize":
-            self.UB = -float("inf")
+        equation.prob.write("file.lp")
+        input("press any key to continue 1")
+        if UB:
+            self.UB = UB
+        else:
+            if solution_type == "minimize":
+                self.UB = float("inf")
+            elif solution_type == "maximize":
+                self.UB = -float("inf")
         if equation.is_integer_solution():
             self.__update_UB(equation)
         self.tree = Tree(equation, solution_type)
@@ -57,8 +60,10 @@ class B_and_B():
         """
         
         """
-        equation = node.get_equations().create_sons_equations(B_and_B.variable_id_to_set)
-        B_and_B.variable_id_to_set += 1
+        eq = node.get_equations()
+        if not eq.cols_to_remove:
+            return None
+        equation = eq.create_sons_equations(eq.cols_to_remove[0])
         #print("\n\nequation[0]:\n", equation[0])
         #input("press any key to continue 3")
         equation[0].solve_milp()
@@ -81,10 +86,12 @@ class B_and_B():
         next_node = self.tree.get_queue_head()
         while next_node:
             equation = self.init_BB_equation(next_node)
-            self.tree.add_nodes(next_node, equation[0], equation[1])
-            print("LB = ", self.LB, ", UB = ", self.UB, "\n", self.tree)
-            input("press any key to continue 7")
-            next_node = self.__try_bound()
+            if equation:
+                self.tree.add_nodes(next_node, equation[0], equation[1])
+                # print("LB = ", self.LB, ", UB = ", self.UB, "\n", self.tree)
+                # print("LB = ", self.LB, ", UB = ", self.UB, "\n")
+                # input("press any key to continue 7")
+                next_node = self.__try_bound()
         #print("LB = ", self.LB, ", UB = ", self.UB, "\n", self.tree)
         print("UB = ", self.UB)
         self.best_equation.print_cplex_solution()
