@@ -5,10 +5,11 @@ class B_and_B():
 
     def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, UB=None, solution_type="minimize"):
         self.best_equation = None
-        self.equation = Equations(obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, len(x_names), {})
+        Equations.init_global_data(obj, ub, lb, ctype, colnames, rownames, sense, len(x_names))
+        equation = Equations(rhs, rows, cols, vals, x_names, {})
         self.solution_type = solution_type
-        self.LB = self.equation.solve_milp()
-        self.equation.prob.write("file.lp")
+        self.LB = equation.solve_milp()
+        # equation.prob.write("file.lp")
         # input("press any key to continue 1")
         if UB:
             self.UB = UB
@@ -17,9 +18,9 @@ class B_and_B():
                 self.UB = float("inf")
             elif solution_type == "maximize":
                 self.UB = -float("inf")
-        if self.equation.is_integer_solution():
-            self.__update_UB(self.equation)
-        self.tree = Tree(self.equation, solution_type)
+        if equation.is_integer_solution():
+            self.__update_UB(equation)
+        self.tree = Tree(equation, solution_type)
         #print("LB = ", self.LB, ", UB = ", self.UB, "\n", self.tree)
         #input("press any key to continue 2")
 
@@ -62,7 +63,7 @@ class B_and_B():
         """
         
         """
-        eq = node.get_equations()
+        eq = node.equation
         if not eq.cols_to_remove:
             return None
         equation = eq.create_sons_equations(eq.cols_to_remove[0])
@@ -96,3 +97,6 @@ class B_and_B():
                 next_node = self.__try_bound()
         #print("LB = ", self.LB, ", UB = ", self.UB, "\n", self.tree)
         self.best_equation.print_cplex_solution()
+        print("max queue size =", self.tree.max_queue_size)
+        print("number of nodes created =", self.tree.num_of_nodes)
+        print("max depth =", self.tree.max_depth)
