@@ -1,5 +1,3 @@
-from resource_usage import Resource_usage
-
 class Resource:
 
     def __init__(self, number):
@@ -21,7 +19,8 @@ class Resource:
         if op_mode in self.usage:
             print("{} already exist".format(op_mode))
         else:
-            self.usage[op_mode] = Resource_usage(start_time, duration)
+            # self.usage[op_mode] = Resource_usage(start_time, duration)
+            self.usage[op_mode] = {"start_time" : start_time, "duration" : duration}
             # the size of resource defined to be the number of operations that need this resource
             for registered_op_mode in self.usage.keys():
                 op, mo = registered_op_mode.split(',')
@@ -30,8 +29,6 @@ class Resource:
             self.size += 1
 
 
-    def __str__(self):
-        usage = ""
-        for key, value in self.usage.items():
-            usage += "\n\t\t\toperation_mode({}): {}".format(key, value)
-        return "{}: size = {}, usage by: {}".format(self.number, self.size, usage)
+    def get_usage_duration(self, operation, mode):
+        op_mode = operation + ',' + mode
+        return self.usage[op_mode]["duration"]

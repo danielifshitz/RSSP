@@ -8,8 +8,7 @@ class B_and_B():
         Equations.init_global_data(obj, ub, lb, ctype, colnames, rownames, sense, len(x_names))
         equation = Equations(rhs, rows, cols, vals, x_names, {})
         self.solution_type = solution_type
-        self.LB = equation.solve_milp()
-        # equation.prob.write("file.lp")
+        self.LB = equation.solve_milp("problem.lp")
         # input("press any key to continue 1")
         if UB:
             self.UB = UB
@@ -21,8 +20,6 @@ class B_and_B():
         if equation.is_integer_solution():
             self.__update_UB(equation)
         self.tree = Tree(equation, solution_type)
-        #print("LB = ", self.LB, ", UB = ", self.UB, "\n", self.tree)
-        #input("press any key to continue 2")
 
 
     def __update_UB(self, equation):
@@ -49,10 +46,8 @@ class B_and_B():
         next_node = self.tree.get_queue_head()
         while next_node: # while the queue not empty
             if self.solution_type == "minimize" and next_node.get_value() > self.UB:
-                #print("node ", next_node.name, " with value ", next_node.get_value(), " bounded")
                 next_node = self.tree.get_queue_head() # take another node from the queue
             elif self.solution_type == "maximize" and next_node.get_value() < self.UB:
-                #print("node ", next_node.name, " with value ", next_node.get_value(), " bounded")
                 next_node = self.tree.get_queue_head() # take another node from the queue
             else:
                 return next_node
@@ -67,17 +62,11 @@ class B_and_B():
         if not eq.cols_to_remove:
             return None
         equation = eq.create_sons_equations(eq.cols_to_remove[0])
-        #print("\n\nequation[0]:\n", equation[0])
-        #input("press any key to continue 3")
-        equation[0].solve_milp()
-        #input("press any key to continue 4")
-        #print("\n\nequation[1]:\n", equation[1])
-        #input("press any key to continue 5")
-        equation[1].solve_milp()
-        #input("press any key to continue 6")
-        if equation[0].is_integer_solution():
+        solution = equation[0].solve_milp()
+        if solution and equation[0].is_integer_solution():
             self.__update_UB(equation[0])
-        if equation[1].is_integer_solution():
+        solution = equation[1].solve_milp()
+        if solution and equation[1].is_integer_solution():
             self.__update_UB(equation[1])
         return equation
 
@@ -91,12 +80,14 @@ class B_and_B():
             equation = self.init_BB_equation(next_node)
             if equation:
                 self.tree.add_nodes(next_node, equation[0], equation[1])
-                # print("LB = ", self.LB, ", UB = ", self.UB, "\n", self.tree)
-                # print("LB = ", self.LB, ", UB = ", self.UB, "\n")
-                # input("press any key to continue 7")
+                # input("press any key to continue 2")
                 next_node = self.__try_bound()
-        #print("LB = ", self.LB, ", UB = ", self.UB, "\n", self.tree)
-        self.best_equation.print_cplex_solution()
+
         print("max queue size =", self.tree.max_queue_size)
         print("number of nodes created =", self.tree.num_of_nodes)
         print("max depth =", self.tree.max_depth)
+        try:
+            return self.best_equation.print_cplex_solution()
+        except:
+            print("cann't find integer solution")
+            return None

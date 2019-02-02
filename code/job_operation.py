@@ -7,6 +7,7 @@ class Operation:
         self.all_resources = {}
         self.global_start_time = -1
 
+
     def add_mode_to_operation(self,num_mode,resource,start,dur):
         """
         add mode to operation, in the same time add resource to mode
@@ -32,11 +33,6 @@ class Operation:
         else:
             self.all_resources[resource].append(num_mode)
 
+
     def set_global_start_time(self, global_start_time):
         self.global_start_time = global_start_time
-
-    def __str__(self):
-        string = ""
-        for mode in self.modes:
-            string += "\n\t" + str(mode)
-        return "operation = {}: modes = {}".format(self.num_of_op, string)
