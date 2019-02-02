@@ -161,7 +161,10 @@ class Job:
                     operations[operation_name]["resources"][r] = {"start" : float(resource_start_time), "duration" : resource_duration}
                 if name == "T" + operation_name:
                     operations[operation_name]["start"] = T_time
+        self.__draw_collected_data(operations)
 
+
+    def __draw_collected_data(self, operations):
         start_y = 0
         plt.figure(figsize=(15,5))
         plt.ylabel('operation')
@@ -176,6 +179,7 @@ class Job:
                 self.__drow_rectangle(start_y + index / div + board, start_y + (index + 1) / div - board, resource_name, resource, x_ticks, "r")
                 index += 1
             start_y += 1
+        # plt.xticks(list(set([ round(elem) for elem in x_ticks ])))
         plt.xticks(list(set(x_ticks)))
         plt.yticks(range(len(operations) + 1))
         plt.show()
@@ -192,13 +196,14 @@ class Job:
 
 print("pid =", os.getpid())
 job1 = Job("data.csv")
-print("|Xi,m,r,l| =", len(job1.x_names), 
-    "\n|equations| =", len(job1.cplex["rownames"]), 
-    "\nPrediction UB =", job1.UB)
+print("|Xi,m,r,l| =", len(job1.x_names), "\n|equations| =", len(job1.cplex["rownames"]), "\nPrediction UB =", job1.UB)
 input("press any key to continue\n")
 print("starting solve")
 start = time.time()
-BB = B_and_B(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"], job1.cplex["ctype"], job1.cplex["colnames"], job1.cplex["rhs"], job1.cplex["rownames"], job1.cplex["sense"], job1.cplex["rows"], job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB)
+BB = B_and_B(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"],
+             job1.cplex["ctype"], job1.cplex["colnames"], job1.cplex["rhs"],
+             job1.cplex["rownames"], job1.cplex["sense"], job1.cplex["rows"],
+             job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB)
 choices = BB.solve_algorithem()
 end = time.time()
 print("solution time is", end - start)

@@ -83,6 +83,7 @@ class B_and_B():
                 # input("press any key to continue 2")
                 next_node = self.__try_bound()
 
+        print("\n\nsolution!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n")
         print("max queue size =", self.tree.max_queue_size)
         print("number of nodes created =", self.tree.num_of_nodes)
         print("max depth =", self.tree.max_depth)

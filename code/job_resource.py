@@ -19,7 +19,6 @@ class Resource:
         if op_mode in self.usage:
             print("{} already exist".format(op_mode))
         else:
-            # self.usage[op_mode] = Resource_usage(start_time, duration)
             self.usage[op_mode] = {"start_time" : start_time, "duration" : duration}
             # the size of resource defined to be the number of operations that need this resource
             for registered_op_mode in self.usage.keys():

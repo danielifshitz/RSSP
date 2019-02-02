@@ -44,7 +44,6 @@ class Equations:
 
     def __populatebynonzero(self, prob):
         prob.objective.set_sense(prob.objective.sense.minimize)
-        #self.prob.objective.set_sense(self.prob.objective.sense.maximize)
         prob.linear_constraints.add(rhs=self.rhs, senses=Equations.sense,
                                     names=Equations.rownames)
         prob.variables.add(obj=Equations.obj, lb=Equations.lb, ub=Equations.ub, types=Equations.ctype,
@@ -100,22 +99,18 @@ class Equations:
             return None
         # self.print_cplex_data(prob, time, file_name)
         x = prob.solution.get_values()
-        # the following line prints the corresponding string
         self.solution = prob.solution.get_objective_value()
-        # print("Solution value  = ", self.solution)
         self.integer_solution = True
         for j in range(self.num_of_x):
             if not round(x[j],10).is_integer():
                 self.integer_solution = False
                 # print(x)
                 break
-        # print("integer_solution =", self.integer_solution)
         prob.end()
         return self.solution
 
     
     def print_cplex_solution(self):
-        print("\n\nsolution!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n")
         try:
             prob = cplex.Cplex()
             self.__populatebynonzero(prob)
@@ -138,7 +133,6 @@ class Equations:
             else:
                 self.choices[self.colnames[j]] = round(x[j],3)
                 print("variable %s:  Value = %10f" % (self.colnames[j], x[j]))
-        # print(self.choices) # need!!!!
         prob.end()
         return self.choices
 

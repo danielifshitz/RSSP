@@ -37,8 +37,7 @@ class Tree:
             self.max_queue_size = len(self.queue)
             print("queue size =", self.max_queue_size)
             print("num of nodes =", self.num_of_nodes)
-            # print("max depth =", self.max_depth)
-            # print("current depth =", father.depth + 1)
+        # print the status of the solution every 100 nodes
         elif self.num_of_nodes % 100 == 1:
             print("queue size =", len(self.queue))
             print("num of nodes =", self.num_of_nodes)

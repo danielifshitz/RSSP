@@ -84,7 +84,6 @@ def third_equations(resources, cplex_d):
 
 
 def fourth_equations(operations, preferences, cplex_d):
-    # string = ""
     for op_num, preferences in preferences.items():
         if preferences != None: # check if the operation have preferences
             for preference_op in preferences:
@@ -117,7 +116,6 @@ def fifth_equations(resources, cplex_d):
 
 
 def sixth_equations(operations, N, cplex_d):
-    # string = ""
     for operation in operations.values():
         for resource, modes in operation.all_resources.items():
             for index in range(1, resource.size + 1):

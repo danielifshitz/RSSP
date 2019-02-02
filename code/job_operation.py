@@ -18,7 +18,7 @@ class Operation:
         return: None
         """
         for mode in self.modes:
-            if mode.num_mode == num_mode: # mode is exists
+            if mode.num_mode == num_mode: # check if mode exists
                 mode.add_resource(resource, start, dur)
                 if resource not in self.all_resources:
                     self.all_resources[resource] = [num_mode]
