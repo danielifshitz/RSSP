@@ -137,30 +137,53 @@ class Equations:
         return self.choices
 
 
-    def create_sons_equations(self, col_name):
+    def create_son_equations(self, col_dict):
         cols_to_remove = self.cols_to_remove[:]
-        zero_rhs = self.rhs[:]
-        one_rhs = self.rhs[:]
+        rhs = self.rhs[:]
         cols = self.cols[:]
         rows = self.rows[:]
         vals = self.vals[:]
-        zero_choices = self.choices.copy()
-        zero_choices[col_name] = 0
-        one_choices = self.choices.copy()
-        one_choices[col_name] = 1
-        cols_to_remove.remove(col_name)
-        variable_id = self.colnames.index(col_name)
+        choices = self.choices.copy()
+        variables_id = []
+        for x, choice in col_dict.items():
+            choices[x] = choice
+            cols_to_remove.remove(x)
+            variables_id.append(self.colnames.index(x))
         index = 0
         while index < len(cols):
-            if cols[index] == variable_id:
-                cols.pop(index)
+            if cols[index] in variables_id:
+                col = cols.pop(index)
                 row = rows.pop(index)
                 val = vals.pop(index)
-                one_rhs[row] -= val
+                rhs[row] -= val * col_dict[self.colnames[col]]
             else:
                 index += 1
-        equations = []
-        equations.append(Equations(zero_rhs, rows, cols, vals, cols_to_remove, zero_choices))
-        equations.append(Equations(one_rhs, rows, cols, vals, cols_to_remove, one_choices))
-        return equations
+        return Equations(rhs, rows, cols, vals, cols_to_remove, choices)
+
+    # def create_sons_equations(self, col_name):
+    #     cols_to_remove = self.cols_to_remove[:]
+    #     zero_rhs = self.rhs[:]
+    #     one_rhs = self.rhs[:]
+    #     cols = self.cols[:]
+    #     rows = self.rows[:]
+    #     vals = self.vals[:]
+    #     zero_choices = self.choices.copy()
+    #     zero_choices[col_name] = 0
+    #     one_choices = self.choices.copy()
+    #     one_choices[col_name] = 1
+    #     cols_to_remove.remove(col_name)
+    #     variable_id = self.colnames.index(col_name)
+    #     index = 0
+    #     while index < len(cols):
+    #         if cols[index] == variable_id:
+    #             cols.pop(index)
+    #             row = rows.pop(index)
+    #             val = vals.pop(index)
+    #             one_rhs[row] -= val
+    #         else:
+    #             index += 1
+    #     equations = []
+    #     equations.append(Equations(zero_rhs, rows, cols, vals, cols_to_remove, zero_choices))
+    #     equations.append(Equations(one_rhs, rows, cols, vals, cols_to_remove, one_choices))
+    #     return equations
 

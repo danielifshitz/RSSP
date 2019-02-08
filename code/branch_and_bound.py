@@ -3,13 +3,11 @@ from tree import Tree
 
 class B_and_B():
 
-    def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, UB=None, solution_type="minimize"):
+    def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, UB=None, use_SP=True, solution_type="minimize"):
         self.best_equation = None
-        Equations.init_global_data(obj, ub, lb, ctype, colnames, rownames, sense, len(x_names))
-        equation = Equations(rhs, rows, cols, vals, x_names, {})
         self.solution_type = solution_type
-        self.LB = equation.solve_milp("problem.lp")
-        # input("press any key to continue 1")
+        Equations.init_global_data(obj, ub, lb, ctype, colnames, rownames, sense, len(x_names))
+        self.tree = Tree()
         if UB:
             self.UB = UB
         else:
@@ -17,9 +15,43 @@ class B_and_B():
                 self.UB = float("inf")
             elif solution_type == "maximize":
                 self.UB = -float("inf")
-        if equation.is_integer_solution():
-            self.__update_UB(equation)
-        self.tree = Tree(equation, solution_type)
+        if use_SP:
+            self.create_SPs(1, rhs, rows, cols, vals, x_names)
+        else:
+            equation = Equations(rhs, rows, cols, vals, x_names, {})
+            self.__init_equation(None, equation, "problem.lp")
+
+
+    def create_SPs(self, op, rhs, rows, cols, vals, x_names, needed_x=[]):
+        mode = 1
+        sub = [s for s in x_names if "X" + str(op)+ "," +str(mode) in s]
+        while sub:
+            needed_x_copy = needed_x[:]
+            needed_x_copy += sub
+            self.create_SPs(op + 1, rhs, rows, cols, vals, x_names, needed_x_copy)
+            mode += 1
+            sub = [s for s in x_names if "X" + str(op)+ "," +str(mode) in s]
+        if not [s for s in x_names if "X" + str(op)+ "," in s]:
+            choices = {elem : index for index, elem in enumerate(x_names) if elem not in needed_x}
+            self.to_delete(choices, cols, rows, vals, rhs, x_names)
+
+
+    def to_delete(self, choices, cols, rows, vals, rhs, all_x):
+        cols_copy = cols[:]
+        rows_copy = rows[:]
+        vals_copy = vals[:]
+        index = 0
+        while index < len(cols_copy):
+            if cols_copy[index] in choices.values():
+                cols_copy.pop(index)
+                rows_copy.pop(index)
+                vals_copy.pop(index)
+            else:
+                index += 1
+        choices = {choice: 0 for choice in choices}
+        not_init_x = [x for x in all_x if x not in choices.keys()]
+        equation = Equations(rhs, rows, cols, vals, not_init_x, choices)
+        self.__init_equation(None, equation)
 
 
     def __update_UB(self, equation):
@@ -52,23 +84,22 @@ class B_and_B():
             else:
                 return next_node
         return None
+
+
+    def __init_equation(self, node, equation, file_name=None):
+        solution = equation.solve_milp(file_name)
+        if solution and equation.is_integer_solution():
+            self.__update_UB(equation)
+        self.tree.add_nodes(node, equation)
     
     
-    def init_BB_equation(self, node):
+    def init_BB_equation(self, node, col_dict):
         """
         
         """
         eq = node.equation
-        if not eq.cols_to_remove:
-            return None
-        equation = eq.create_sons_equations(eq.cols_to_remove[0])
-        solution = equation[0].solve_milp()
-        if solution and equation[0].is_integer_solution():
-            self.__update_UB(equation[0])
-        solution = equation[1].solve_milp()
-        if solution and equation[1].is_integer_solution():
-            self.__update_UB(equation[1])
-        return equation
+        equation = eq.create_son_equations(col_dict)
+        self.__init_equation(node, equation)
 
 
     def solve_algorithem(self):
@@ -77,13 +108,14 @@ class B_and_B():
         """
         next_node = self.tree.get_queue_head()
         while next_node:
-            equation = self.init_BB_equation(next_node)
-            if equation:
-                self.tree.add_nodes(next_node, equation[0], equation[1])
-                # input("press any key to continue 2")
-                next_node = self.__try_bound()
+            if next_node.equation.cols_to_remove:
+                col_dict = {next_node.equation.cols_to_remove[0] : 0}
+                self.init_BB_equation(next_node, col_dict)
+                col_dict = {next_node.equation.cols_to_remove[0] : 1}
+                self.init_BB_equation(next_node, col_dict)
+            next_node = self.__try_bound()
 
-        print("\n\nsolution!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n\n")
+        print("\n\n\n\n")
         print("max queue size =", self.tree.max_queue_size)
         print("number of nodes created =", self.tree.num_of_nodes)
         print("max depth =", self.tree.max_depth)

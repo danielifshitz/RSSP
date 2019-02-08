@@ -130,13 +130,6 @@ class Job:
         equations.seventh_equations(self.operations, self.cplex)
 
 
-    def __str__(self):
-        string = ""
-        for key, value in self.operations.items():
-            string += str(key) + " : { " + str(value) + " \n}\n"
-        return string
-
-
     def draw_solution(self, choices):
         operations = {}
         for operation_name, op in self.operations.items():
@@ -167,31 +160,40 @@ class Job:
     def __draw_collected_data(self, operations):
         start_y = 0
         plt.figure(figsize=(15,5))
+        plt.subplots_adjust(left=0.04, right=0.99, bottom=0.08, top=0.95)
         plt.ylabel('operation')
         plt.xlabel('time')
+        board = 0.02
         x_ticks = []
-        for op_name, op in operations.items():
-            div = len(op["resources"]) + 1
-            board = 0.01
-            self.__drow_rectangle(start_y + board, start_y + 1 / div - board, op_name, op, x_ticks, "op")
-            index = 1
+        for op in operations.values():
+            div = len(op["resources"])
+            self.__drow_rectangle(start_y, start_y + 1, op, x_ticks)
+            index = 0
             for resource_name, resource in op["resources"].items():
-                self.__drow_rectangle(start_y + index / div + board, start_y + (index + 1) / div - board, resource_name, resource, x_ticks, "r")
+                self.__drow_rectangle(start_y + index / div, start_y + (index + 1) / div, resource, x_ticks, 1, board, resource_name, "r")
                 index += 1
             start_y += 1
-        # plt.xticks(list(set([ round(elem) for elem in x_ticks ])))
         plt.xticks(list(set(x_ticks)))
         plt.yticks(range(len(operations) + 1))
         plt.show()
 
 
-    def __drow_rectangle(self, start_y, end_y, key, value, x_ticks, text):
-        y = [start_y, start_y, end_y, end_y, start_y]
-        x = [value["start"], value["start"] + value["duration"], value["start"] + value["duration"], value["start"], value["start"]]
+    def __drow_rectangle(self, start_y, end_y, value, x_ticks, width=2, board=0, key="", text=""):
+        y = [start_y + board, start_y + board, end_y - board, end_y - board, start_y + board]
+        # board *= 1.5
+        x = [value["start"] + board, value["start"] + value["duration"] - board, 
+             value["start"] + value["duration"] - board, value["start"] + board, value["start"] + board]
         x_ticks.append(value["start"])
         x_ticks.append(value["start"] + value["duration"])
-        plt.plot(x,y)
-        plt.text(value["start"] + 0.1, start_y + 0.05, text + key, fontsize=8)
+        plt.plot(x,y, linewidth=width)
+        plt.text(value["start"] + 0.1, start_y + 0.03, text + key, fontsize=8)
+
+
+    def __str__(self):
+        string = ""
+        for key, value in self.operations.items():
+            string += str(key) + " : { " + str(value) + " \n}\n"
+        return string
 
 
 print("pid =", os.getpid())
@@ -203,7 +205,7 @@ start = time.time()
 BB = B_and_B(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"],
              job1.cplex["ctype"], job1.cplex["colnames"], job1.cplex["rhs"],
              job1.cplex["rownames"], job1.cplex["sense"], job1.cplex["rows"],
-             job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB)
+             job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB, False)
 choices = BB.solve_algorithem()
 end = time.time()
 print("solution time is", end - start)

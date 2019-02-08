@@ -1,7 +1,6 @@
 class Node:
 
     number = 0
-    solution_type = "minimize"
 
     def __init__(self, equation, father=None):
         # self.father = father
@@ -36,7 +35,4 @@ class Node:
         return True is this node less the other node, Flase otherwise
         return: boolean
         """
-        if Node.solution_type == "minimize":
-            return other.get_value() > self.get_value() # minimize
-        else:
-            return other.get_value() < self.get_value() # maximize
+        return other.get_value() >= self.get_value() # minimize
