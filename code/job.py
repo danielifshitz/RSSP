@@ -130,7 +130,7 @@ class Job:
         equations.seventh_equations(self.operations, self.cplex)
 
 
-    def draw_solution(self, choices):
+    def draw_solution(self, choices, title):
         operations = {}
         for operation_name, op in self.operations.items():
             mode_found = False
@@ -154,35 +154,36 @@ class Job:
                     operations[operation_name]["resources"][r] = {"start" : float(resource_start_time), "duration" : resource_duration}
                 if name == "T" + operation_name:
                     operations[operation_name]["start"] = T_time
-        self.__draw_collected_data(operations)
+        self.__draw_collected_data(operations, title)
 
 
-    def __draw_collected_data(self, operations):
+    def __draw_collected_data(self, operations, title):
         start_y = 0
-        plt.figure(figsize=(15,5))
-        plt.subplots_adjust(left=0.04, right=0.99, bottom=0.08, top=0.95)
+        plt.get_current_fig_manager().window.showMaximized()
+        plt.subplots_adjust(left=0.03, right=0.99, bottom=0.08, top=0.90)
+        plt.title(title)
         plt.ylabel('operation')
         plt.xlabel('time')
-        board = 0.02
         x_ticks = []
         for op in operations.values():
             div = len(op["resources"])
             self.__drow_rectangle(start_y, start_y + 1, op, x_ticks)
             index = 0
             for resource_name, resource in op["resources"].items():
-                self.__drow_rectangle(start_y + index / div, start_y + (index + 1) / div, resource, x_ticks, 1, board, resource_name, "r")
+                self.__drow_rectangle(start_y + index / div, start_y + (index + 1) / div, resource, x_ticks, 1, resource_name, "r")
                 index += 1
             start_y += 1
         plt.xticks(list(set(x_ticks)))
         plt.yticks(range(len(operations) + 1))
+        for i in range(len(operations) + 1):
+            plt.axhline(i, color='black')
         plt.show()
 
 
-    def __drow_rectangle(self, start_y, end_y, value, x_ticks, width=2, board=0, key="", text=""):
-        y = [start_y + board, start_y + board, end_y - board, end_y - board, start_y + board]
-        # board *= 1.5
-        x = [value["start"] + board, value["start"] + value["duration"] - board, 
-             value["start"] + value["duration"] - board, value["start"] + board, value["start"] + board]
+    def __drow_rectangle(self, start_y, end_y, value, x_ticks, width=2, key="", text=""):
+        y = [start_y, start_y, end_y, end_y, start_y]
+        x = [value["start"], value["start"] + value["duration"],
+             value["start"] + value["duration"], value["start"], value["start"]]
         x_ticks.append(value["start"])
         x_ticks.append(value["start"] + value["duration"])
         plt.plot(x,y, linewidth=width)
@@ -205,9 +206,10 @@ start = time.time()
 BB = B_and_B(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"],
              job1.cplex["ctype"], job1.cplex["colnames"], job1.cplex["rhs"],
              job1.cplex["rownames"], job1.cplex["sense"], job1.cplex["rows"],
-             job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB, False)
-choices = BB.solve_algorithem()
+             job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB, True)
+choices, solution_data = BB.solve_algorithem()
 end = time.time()
-print("solution time is", end - start)
-print(choices)
-job1.draw_solution(choices)
+# print("solution time is", end - start)
+solution_data = "solution in {} sec\n".format(end - start) + solution_data
+# print(choices)
+job1.draw_solution(choices, solution_data)

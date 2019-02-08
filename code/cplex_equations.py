@@ -159,31 +159,3 @@ class Equations:
             else:
                 index += 1
         return Equations(rhs, rows, cols, vals, cols_to_remove, choices)
-
-    # def create_sons_equations(self, col_name):
-    #     cols_to_remove = self.cols_to_remove[:]
-    #     zero_rhs = self.rhs[:]
-    #     one_rhs = self.rhs[:]
-    #     cols = self.cols[:]
-    #     rows = self.rows[:]
-    #     vals = self.vals[:]
-    #     zero_choices = self.choices.copy()
-    #     zero_choices[col_name] = 0
-    #     one_choices = self.choices.copy()
-    #     one_choices[col_name] = 1
-    #     cols_to_remove.remove(col_name)
-    #     variable_id = self.colnames.index(col_name)
-    #     index = 0
-    #     while index < len(cols):
-    #         if cols[index] == variable_id:
-    #             cols.pop(index)
-    #             row = rows.pop(index)
-    #             val = vals.pop(index)
-    #             one_rhs[row] -= val
-    #         else:
-    #             index += 1
-    #     equations = []
-    #     equations.append(Equations(zero_rhs, rows, cols, vals, cols_to_remove, zero_choices))
-    #     equations.append(Equations(one_rhs, rows, cols, vals, cols_to_remove, one_choices))
-    #     return equations
-

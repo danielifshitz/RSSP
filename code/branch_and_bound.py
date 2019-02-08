@@ -32,8 +32,7 @@ class B_and_B():
             mode += 1
             sub = [s for s in x_names if "X" + str(op)+ "," +str(mode) in s]
         if not [s for s in x_names if "X" + str(op)+ "," in s]:
-            choices = {elem : index for index, elem in enumerate(x_names) if elem not in needed_x}
-            self.to_delete(choices, cols, rows, vals, rhs, x_names)
+            self.to_delete({elem : index for index, elem in enumerate(x_names) if elem not in needed_x}, cols, rows, vals, rhs, x_names)
 
 
     def to_delete(self, choices, cols, rows, vals, rhs, all_x):
@@ -117,10 +116,12 @@ class B_and_B():
 
         print("\n\n\n\n")
         print("max queue size =", self.tree.max_queue_size)
-        print("number of nodes created =", self.tree.num_of_nodes)
+        print("created nodes =", self.tree.num_of_nodes)
         print("max depth =", self.tree.max_depth)
+        solution_data = "created nodes = {}\nmax depth = {}\nmax queue size = {}".format(self.tree.num_of_nodes,
+            self.tree.max_depth, self.tree.max_queue_size)
         try:
-            return self.best_equation.print_cplex_solution()
+            return self.best_equation.print_cplex_solution(), solution_data
         except:
             print("cann't find integer solution")
             return None
