@@ -34,21 +34,12 @@ class Equations:
         Equations.num_of_x = num_of_x
 
 
-    def get_solution(self):
-        return self.solution
-
-
-    def is_integer_solution(self):
-        return self.integer_solution
-
-
     def __populatebynonzero(self, prob):
         prob.objective.set_sense(prob.objective.sense.minimize)
         prob.linear_constraints.add(rhs=self.rhs, senses=Equations.sense,
                                     names=Equations.rownames)
         prob.variables.add(obj=Equations.obj, lb=Equations.lb, ub=Equations.ub, types=Equations.ctype,
                            names=Equations.colnames)
-        # print("number of integers =", prob.variables.get_num_integer())
         prob.linear_constraints.set_coefficients(zip(self.rows, self.cols, self.vals))
 
 
@@ -104,7 +95,6 @@ class Equations:
         for j in range(self.num_of_x):
             if not round(x[j],10).is_integer():
                 self.integer_solution = False
-                # print(x)
                 break
         prob.end()
         return self.solution
@@ -121,18 +111,11 @@ class Equations:
         except CplexError as exc:
             print(exc)
             return None
-        status = prob.solution.get_status()
-        print("Solution status = ", status, ":", end=' ')
-        print(prob.solution.status[prob.solution.get_status()])
-        print("Solution value = %10f" % prob.solution.get_objective_value())
         numcols = prob.variables.get_num()
         x = prob.solution.get_values()
         for j in range(numcols):
-            if self.colnames[j] in self.choices:
-                print("variable %s:  Value = %10f" % (self.colnames[j], self.choices[self.colnames[j]]))
-            else:
+            if self.colnames[j] not in self.choices:
                 self.choices[self.colnames[j]] = round(x[j],3)
-                print("variable %s:  Value = %10f" % (self.colnames[j], x[j]))
         prob.end()
         return self.choices
 

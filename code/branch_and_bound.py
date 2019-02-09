@@ -16,26 +16,27 @@ class B_and_B():
             elif solution_type == "maximize":
                 self.UB = -float("inf")
         if use_SP:
-            self.create_SPs(1, rhs, rows, cols, vals, x_names)
+            self.__create_SPs(1, rhs, rows, cols, vals, x_names)
         else:
             equation = Equations(rhs, rows, cols, vals, x_names, {})
             self.__init_equation(None, equation, "problem.lp")
 
 
-    def create_SPs(self, op, rhs, rows, cols, vals, x_names, needed_x=[]):
+    def __create_SPs(self, op, rhs, rows, cols, vals, x_names, needed_x=[]):
         mode = 1
         sub = [s for s in x_names if "X" + str(op)+ "," +str(mode) in s]
+        if not sub:
+            return self.__to_delete({elem : index for index, elem in enumerate(x_names) if elem not in needed_x}, cols, rows, vals, rhs, x_names)
         while sub:
             needed_x_copy = needed_x[:]
             needed_x_copy += sub
-            self.create_SPs(op + 1, rhs, rows, cols, vals, x_names, needed_x_copy)
+            self.__create_SPs(op + 1, rhs, rows, cols, vals, x_names, needed_x_copy)
             mode += 1
             sub = [s for s in x_names if "X" + str(op)+ "," +str(mode) in s]
-        if not [s for s in x_names if "X" + str(op)+ "," in s]:
-            self.to_delete({elem : index for index, elem in enumerate(x_names) if elem not in needed_x}, cols, rows, vals, rhs, x_names)
+            
 
 
-    def to_delete(self, choices, cols, rows, vals, rhs, all_x):
+    def __to_delete(self, choices, cols, rows, vals, rhs, all_x):
         cols_copy = cols[:]
         rows_copy = rows[:]
         vals_copy = vals[:]
@@ -55,11 +56,11 @@ class B_and_B():
 
     def __update_UB(self, equation):
         """
-        check the equation and if their solution better then the UB, update UB and save the equation
-        equatiosn: Equation, the equation of a node
+        check the equation and if their solution better then the UB, update UB 
+            and save the equation equatiosn: Equation, the equation of a node
         return: None
         """
-        solution = equation.get_solution()
+        solution = equation.solution
         if solution and self.solution_type == "minimize" and solution < self.UB:
             self.UB = solution
             self.best_equation = equation
@@ -71,7 +72,7 @@ class B_and_B():
     def __try_bound(self):
         """
         take the next node in the queue, if its solution worth then the UB drop this node
-        repeat until node solution better then the UB or until the queue is empty
+            repeat until node solution better then the UB or until the queue is empty
         return: Node if fuond better solution then UB or None if the queue is empty
         """
         next_node = self.tree.get_queue_head()
@@ -86,15 +87,26 @@ class B_and_B():
 
 
     def __init_equation(self, node, equation, file_name=None):
-        solution = equation.solve_milp(file_name)
-        if solution and equation.is_integer_solution():
-            self.__update_UB(equation)
-        self.tree.add_nodes(node, equation)
-    
-    
-    def init_BB_equation(self, node, col_dict):
         """
-        
+        create new node from the equation and add it to tree queue
+        node: Node, father node
+        equation: Equation, cplex data
+        file_name: string, where save the cplex solution
+        return: None
+        """
+        solution = equation.solve_milp(file_name)
+        if solution and equation.integer_solution:
+            self.__update_UB(equation)
+        else:
+            self.tree.add_node(node, equation)
+    
+    
+    def create_node(self, node, col_dict):
+        """
+        create new equation and add it to the B&B
+        node: Node, father node
+        col_dict: dict, a dict of parameters name and the selected value for them
+        return: None
         """
         eq = node.equation
         equation = eq.create_son_equations(col_dict)
@@ -103,22 +115,20 @@ class B_and_B():
 
     def solve_algorithem(self):
         """
-        run the branch and bound algorithm to find the best solution for the equation
+        run the branch and bound algorithm to find the best solution for the equation.
+        return: dict, string: dict is the parameters name and its value 
+            and the string is the created nodes, max depth and max queue size
         """
         next_node = self.tree.get_queue_head()
         while next_node:
             if next_node.equation.cols_to_remove:
                 col_dict = {next_node.equation.cols_to_remove[0] : 0}
-                self.init_BB_equation(next_node, col_dict)
+                self.create_node(next_node, col_dict)
                 col_dict = {next_node.equation.cols_to_remove[0] : 1}
-                self.init_BB_equation(next_node, col_dict)
+                self.create_node(next_node, col_dict)
             next_node = self.__try_bound()
 
-        print("\n\n\n\n")
-        print("max queue size =", self.tree.max_queue_size)
-        print("created nodes =", self.tree.num_of_nodes)
-        print("max depth =", self.tree.max_depth)
-        solution_data = "created nodes = {}\nmax depth = {}\nmax queue size = {}".format(self.tree.num_of_nodes,
+        solution_data = "created nodes = {}, max depth = {}, max queue size = {}".format(self.tree.num_of_nodes,
             self.tree.max_depth, self.tree.max_queue_size)
         try:
             return self.best_equation.print_cplex_solution(), solution_data

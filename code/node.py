@@ -1,16 +1,15 @@
 class Node:
 
-    number = 0
+    # number = 0
 
     def __init__(self, equation, father=None):
-        # self.father = father
         self.equation = equation
         if not father:
             self.depth = 0
         else:
             self.depth = father.depth + 1
-        self.name = Node.number
-        Node.number += 1
+        # self.name = Node.number
+        # Node.number += 1
 
 
     def is_leaf(self):
@@ -26,7 +25,7 @@ class Node:
         return node's value, which  calculeted at Equations
         return: float
         """
-        return self.equation.get_solution()
+        return self.equation.solution
 
 
     def __lt__(self, other):
@@ -35,4 +34,4 @@ class Node:
         return True is this node less the other node, Flase otherwise
         return: boolean
         """
-        return other.get_value() >= self.get_value() # minimize
+        return other.get_value() >= self.get_value()

@@ -10,7 +10,7 @@ class Mode:
 
     def add_resource(self, resource, resource_start, resource_dur):
         """
-        add resource to mode
+        add resource to mode.
         resource: Resource - a resource that the mode need
         resource_start: float - local start time of the resource in the mode
         resource_dur: float - the duretion of the resource usage
@@ -22,7 +22,7 @@ class Mode:
 
     def find_rtag(self):
         """
-        every mode have a r' which is the smallest usage resource
+        every mode have a r' which is the last smallest usage resource
         return: None
         """
         min = float('inf')
@@ -34,13 +34,13 @@ class Mode:
 
     def find_tim(self):
         """
-        tim is the time that take to mode to end, it is the MAX(start_time + duration) 
-        of all mode's resources
+        tim is the time that take to mode to end, it is the 
+        MAX(start_time + duration) of all mode's resources.
         return: None
         """
         max = 0
         op_mode = self.op_num + ',' + self.num_mode
         for resource in self.needed_resources:
-            if resource.usage[op_mode]["start_time"] + resource.usage[op_mode]["duration"] > max:
-                max = resource.usage[op_mode]["start_time"] + resource.usage[op_mode]["duration"]
+            sum = resource.usage[op_mode]["start_time"] + resource.usage[op_mode]["duration"]
+            if sum > max: max = sum
         self.tim = max
