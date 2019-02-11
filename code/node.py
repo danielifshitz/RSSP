@@ -1,15 +1,11 @@
 class Node:
 
-    # number = 0
-
     def __init__(self, equation, father=None):
         self.equation = equation
         if not father:
             self.depth = 0
         else:
             self.depth = father.depth + 1
-        # self.name = Node.number
-        # Node.number += 1
 
 
     def is_leaf(self):

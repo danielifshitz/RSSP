@@ -23,35 +23,22 @@ class B_and_B():
 
 
     def __create_SPs(self, op, rhs, rows, cols, vals, x_names, needed_x=[]):
+        """
+        recursive function, for every SP take all operations and choice one mode.
+        all SPs must be difference.
+        """
         mode = 1
         sub = [s for s in x_names if "X" + str(op)+ "," +str(mode) in s]
-        if not sub:
-            return self.__to_delete({elem : index for index, elem in enumerate(x_names) if elem not in needed_x}, cols, rows, vals, rhs, x_names)
         while sub:
             needed_x_copy = needed_x[:]
             needed_x_copy += sub
             self.__create_SPs(op + 1, rhs, rows, cols, vals, x_names, needed_x_copy)
             mode += 1
             sub = [s for s in x_names if "X" + str(op)+ "," +str(mode) in s]
-            
-
-
-    def __to_delete(self, choices, cols, rows, vals, rhs, all_x):
-        cols_copy = cols[:]
-        rows_copy = rows[:]
-        vals_copy = vals[:]
-        index = 0
-        while index < len(cols_copy):
-            if cols_copy[index] in choices.values():
-                cols_copy.pop(index)
-                rows_copy.pop(index)
-                vals_copy.pop(index)
-            else:
-                index += 1
-        choices = {choice: 0 for choice in choices}
-        not_init_x = [x for x in all_x if x not in choices.keys()]
-        equation = Equations(rhs, rows, cols, vals, not_init_x, choices)
-        self.__init_equation(None, equation)
+        if not [s for s in x_names if "X" + str(op) in s]:
+            equation = Equations.create_equations_with_choices({elem : 0 for elem in x_names if elem not in needed_x},
+                cols[:], rows[:], vals[:], rhs[:], x_names[:],{})
+            self.__init_equation(None, equation)
 
 
     def __update_UB(self, equation):
@@ -97,7 +84,7 @@ class B_and_B():
         solution = equation.solve_milp(file_name)
         if solution and equation.integer_solution:
             self.__update_UB(equation)
-        else:
+        elif solution:
             self.tree.add_node(node, equation)
     
     
@@ -109,8 +96,29 @@ class B_and_B():
         return: None
         """
         eq = node.equation
-        equation = eq.create_son_equations(col_dict)
+        equation = eq.create_equations_with_choices(col_dict, eq.cols[:], eq.rows[:],
+            eq.vals[:], eq.rhs[:], eq.cols_to_remove[:], eq.choices.copy())
         self.__init_equation(node, equation)
+
+
+    def set_x_to_one(self, node):
+        choices = {}
+        x_one = node.equation.cols_to_remove[0]
+        choices[x_one] = 1
+        i, m, r, l = x_one[1:].split(",")
+        # if Xi,m,r,l = 1
+        for x in node.equation.cols_to_remove:
+            other_i, other_m, other_r, other_l = x[1:].split(",")
+            # Xj,n,t,k = 0 | j = i, n = m, t = r and k != l
+            if i == other_i and m == other_m and r == other_r and l != other_l:
+                choices[x] = 0
+            # Xj,n,t,k = 0 | j != i, n = or != m, t = r and k = l
+            elif i != other_i and r == other_r and l == other_l:
+                choices[x] = 0
+            # Xj,n,t,k = 0 | j = i, n != m, t = or != r and k = or != l
+            elif i == other_i and m != other_m:
+                choices[x] = 0
+        return choices
 
 
     def solve_algorithem(self):
@@ -124,7 +132,7 @@ class B_and_B():
             if next_node.equation.cols_to_remove:
                 col_dict = {next_node.equation.cols_to_remove[0] : 0}
                 self.create_node(next_node, col_dict)
-                col_dict = {next_node.equation.cols_to_remove[0] : 1}
+                col_dict = self.set_x_to_one(next_node)
                 self.create_node(next_node, col_dict)
             next_node = self.__try_bound()
 

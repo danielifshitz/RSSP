@@ -78,6 +78,7 @@ class Equations:
             # start = prob.get_time()
             prob.solve()
             # time = prob.get_time() - start
+            # self.print_cplex_data(prob, time, file_name)
         except CplexError as exc:
             print(exc)
             return None
@@ -104,10 +105,10 @@ class Equations:
         try:
             prob = cplex.Cplex()
             self.__populatebynonzero(prob)
-            start = prob.get_time()
+            # start = prob.get_time()
             prob.solve()
-            time = prob.get_time() - start
-            self.print_cplex_data(prob, time)
+            # time = prob.get_time() - start
+            # self.print_cplex_data(prob, time)
         except CplexError as exc:
             print(exc)
             return None
@@ -120,25 +121,29 @@ class Equations:
         return self.choices
 
 
-    def create_son_equations(self, col_dict):
-        cols_to_remove = self.cols_to_remove[:]
-        rhs = self.rhs[:]
-        cols = self.cols[:]
-        rows = self.rows[:]
-        vals = self.vals[:]
-        choices = self.choices.copy()
+    @staticmethod
+    def create_equations_with_choices(new_choices, cols, rows, vals, rhs, cols_to_remove, all_choices={}):
+        """
+        new_choices: dict, parametere name : choice value
+        cols: list of numbers, cols list for cplex
+        rows: list of numbers, rows list for cplex
+        vals: list of numbers, vals list for cplex
+        rhs: string, rhs for cplex
+        cols_to_remove: list of strings, all the Xi,m,r,l that not set yet
+        all_choices: dict, choices that already made
+        """
         variables_id = []
-        for x, choice in col_dict.items():
-            choices[x] = choice
+        for x, choice in new_choices.items():
+            all_choices[x] = choice
             cols_to_remove.remove(x)
-            variables_id.append(self.colnames.index(x))
+            variables_id.append(Equations.colnames.index(x))
         index = 0
         while index < len(cols):
             if cols[index] in variables_id:
                 col = cols.pop(index)
                 row = rows.pop(index)
                 val = vals.pop(index)
-                rhs[row] -= val * col_dict[self.colnames[col]]
+                rhs[row] -= val * new_choices[Equations.colnames[col]]
             else:
                 index += 1
-        return Equations(rhs, rows, cols, vals, cols_to_remove, choices)
+        return Equations(rhs, rows, cols, vals, cols_to_remove, all_choices)

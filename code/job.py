@@ -195,11 +195,11 @@ class Job:
         return: None
         """
         start_y = 0
-        plt.figure(figsize=(25,15))
-        plt.subplots_adjust(left=0.075, right=0.99, bottom=0.1, top=0.93)
-        plt.title(title, fontsize=16)
-        plt.ylabel('operation & modes', fontsize=18)
-        plt.xlabel('time', fontsize=18)
+        plt.figure(figsize=(25,10))
+        plt.subplots_adjust(left=0.1, right=0.98, bottom=0.1, top=0.9)
+        plt.title(title, fontsize=14)
+        plt.ylabel('operation & modes', fontsize=16)
+        plt.xlabel('time', fontsize=16)
         x_ticks = []
         for op in operations.values():
             div = len(op["resources"])
@@ -234,18 +234,18 @@ class Job:
         plt.plot(x,y, linewidth=width)
         plt.text(value["start"] + 0.1, start_y + 0.03, text, fontsize=8)
 
-
-print("pid =", os.getpid())
-job1 = Job("data.csv")
-print("|Xi,m,r,l| =", len(job1.x_names), "\n|equations| =", len(job1.cplex["rownames"]), "\nPrediction UB =", job1.UB)
-input("press any key to continue\n")
-print("starting solve")
-start = time.time()
-BB = B_and_B(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"],
-             job1.cplex["ctype"], job1.cplex["colnames"], job1.cplex["rhs"],
-             job1.cplex["rownames"], job1.cplex["sense"], job1.cplex["rows"],
-             job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB, False)
-choices, solution_data = BB.solve_algorithem()
-end = time.time()
-solution_data = "solution in %10f sec\n" % (end - start) + solution_data
-job1.draw_solution(choices, solution_data)
+if __name__ == '__main__':
+    print("pid =", os.getpid())
+    job1 = Job("data.csv")
+    print("|Xi,m,r,l| =", len(job1.x_names), "\n|equations| =", len(job1.cplex["rownames"]), "\nPrediction UB =", job1.UB)
+    input("press any key to continue\n")
+    print("starting solve")
+    start = time.time()
+    BB = B_and_B(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"],
+                job1.cplex["ctype"], job1.cplex["colnames"], job1.cplex["rhs"],
+                job1.cplex["rownames"], job1.cplex["sense"], job1.cplex["rows"],
+                job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB, False)
+    choices, solution_data = BB.solve_algorithem()
+    end = time.time()
+    solution_data = "solution in %10f sec\n" % (end - start) + solution_data
+    job1.draw_solution(choices, solution_data)
