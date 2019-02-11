@@ -182,3 +182,17 @@ def seventh_equations(operations, cplex_d):
         add_row_col_val(cplex_d, "F", row_index, -1)
         cplex_d["sense"] += "L"
         cplex_d["rhs"].append(0)
+
+
+def eighth_equations(resources, cplex_d):
+    for resource in resources.values():
+        for index in range (1, resource.size + 1):
+            row_index = get_next_row_index(cplex_d)
+            t_r_l = "T{},{}".format(resource.number,index)
+            add_row_col_val(cplex_d, t_r_l, row_index, 1)
+            for op_mode, usage in resource.usage.items():
+                x_i_m_r_l = "X{},{},{}".format(op_mode, resource.number, index)
+                add_row_col_val(cplex_d, x_i_m_r_l, row_index, usage["duration"])
+            add_row_col_val(cplex_d, "F", row_index, -1)
+            cplex_d["sense"] += "L"
+            cplex_d["rhs"].append(0)

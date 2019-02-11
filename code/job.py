@@ -141,6 +141,7 @@ class Job:
         constraint_equations.fifth_equations(self.resources, self.cplex)
         constraint_equations.sixth_equations(self.operations, self.N, self.cplex)
         constraint_equations.seventh_equations(self.operations, self.cplex)
+        # constraint_equations.eighth_equations(self.resources, self.cplex)
 
 
     def draw_solution(self, choices, title):

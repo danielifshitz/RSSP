@@ -30,12 +30,12 @@ class Tree:
             self.max_queue_size = len(self.queue)
             print("queue size =", self.max_queue_size)
             print("num of nodes =", self.num_of_nodes)
-            print("queue = ", [item.get_value() for item in self.queue])
+            # print("queue = ", [item.get_value() for item in self.queue])
         # print the status of the solution every 100 nodes
         elif self.num_of_nodes % 100 == 1:
             print("queue size =", len(self.queue))
             print("num of nodes =", self.num_of_nodes)
-            print("queue = ", [item.get_value() for item in self.queue])
+            # print("queue = ", [item.get_value() for item in self.queue])
 
 
     def get_queue_head(self):
