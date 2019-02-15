@@ -11,13 +11,38 @@ class Equations:
     sense = ""
     num_of_x = 0
 
-    def __init__(self, rhs, rows, cols, vals, cols_to_remove, choices):
+    def __init__(self, cols, rows, vals, rhs, cols_to_remove, all_choices={}, new_choices={}):
+        """
+        cols: list of numbers, cols list for cplex
+        rows: list of numbers, rows list for cplex
+        vals: list of numbers, vals list for cplex
+        rhs: string, rhs for cplex
+        cols_to_remove: list of strings, all the Xi,m,r,l that not set yet
+        all_choices: dict, choices that already made
+        new_choices: dict, parametere name : choice value
+        """
+        if new_choices:
+            variables_id = []
+            index = 0
+            for x, choice in new_choices.items():
+                all_choices[x] = choice
+                cols_to_remove.remove(x)
+                variables_id.append(Equations.colnames.index(x))
+
+            while index < len(cols):
+                if cols[index] in variables_id:
+                    col = cols.pop(index)
+                    row = rows.pop(index)
+                    val = vals.pop(index)
+                    rhs[row] -= val * new_choices[Equations.colnames[col]]
+                else:
+                    index += 1
         self.rhs = rhs
         self.rows = rows
         self.cols = cols
         self.vals = vals
         self.cols_to_remove = cols_to_remove
-        self.choices = choices
+        self.choices = all_choices
         self.integer_solution = False
         self.solution = None
 
@@ -35,6 +60,7 @@ class Equations:
 
 
     def __populatebynonzero(self, prob):
+        # prob.parameters.mip.limits.nodes.set(1)
         prob.objective.set_sense(prob.objective.sense.minimize)
         prob.linear_constraints.add(rhs=self.rhs, senses=Equations.sense,
                                     names=Equations.rownames)
@@ -69,11 +95,9 @@ class Equations:
     def solve_milp(self, file_name=None):
         try:
             prob = cplex.Cplex()
-            cplexlog = "cplex.log"
             prob.set_warning_stream(None)
             prob.set_results_stream(None)
             prob.set_error_stream(None)
-            prob.set_log_stream(cplexlog)
             self.__populatebynonzero(prob)
             # start = prob.get_time()
             prob.solve()
@@ -81,6 +105,7 @@ class Equations:
             # self.print_cplex_data(prob, time, file_name)
         except CplexError as exc:
             print(exc)
+            input("press any key to continue")
             return None
         status = prob.solution.get_status()
         if status != 101:
@@ -89,7 +114,6 @@ class Equations:
             # print(prob.solution.status[prob.solution.get_status()])
             self.integer_solution = True
             return None
-        # self.print_cplex_data(prob, time, file_name)
         x = prob.solution.get_values()
         self.solution = prob.solution.get_objective_value()
         self.integer_solution = True
@@ -119,31 +143,3 @@ class Equations:
                 self.choices[self.colnames[j]] = round(x[j],3)
         prob.end()
         return self.choices
-
-
-    @staticmethod
-    def create_equations_with_choices(new_choices, cols, rows, vals, rhs, cols_to_remove, all_choices={}):
-        """
-        new_choices: dict, parametere name : choice value
-        cols: list of numbers, cols list for cplex
-        rows: list of numbers, rows list for cplex
-        vals: list of numbers, vals list for cplex
-        rhs: string, rhs for cplex
-        cols_to_remove: list of strings, all the Xi,m,r,l that not set yet
-        all_choices: dict, choices that already made
-        """
-        variables_id = []
-        for x, choice in new_choices.items():
-            all_choices[x] = choice
-            cols_to_remove.remove(x)
-            variables_id.append(Equations.colnames.index(x))
-        index = 0
-        while index < len(cols):
-            if cols[index] in variables_id:
-                col = cols.pop(index)
-                row = rows.pop(index)
-                val = vals.pop(index)
-                rhs[row] -= val * new_choices[Equations.colnames[col]]
-            else:
-                index += 1
-        return Equations(rhs, rows, cols, vals, cols_to_remove, all_choices)

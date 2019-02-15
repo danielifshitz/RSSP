@@ -18,7 +18,7 @@ class B_and_B():
         if use_SP:
             self.__create_SPs(1, rhs, rows, cols, vals, x_names)
         else:
-            equation = Equations(rhs, rows, cols, vals, x_names, {})
+            equation = Equations(cols, rows, vals, rhs, x_names, {}, {})
             self.__init_equation(None, equation, "problem.lp")
 
 
@@ -36,8 +36,8 @@ class B_and_B():
             mode += 1
             sub = [s for s in x_names if "X" + str(op)+ "," +str(mode) in s]
         if not [s for s in x_names if "X" + str(op) in s]:
-            equation = Equations.create_equations_with_choices({elem : 0 for elem in x_names if elem not in needed_x},
-                cols[:], rows[:], vals[:], rhs[:], x_names[:],{})
+            equation = Equations(cols[:], rows[:], vals[:], rhs[:], x_names[:],{},
+                {elem : 0 for elem in x_names if elem not in needed_x})
             self.__init_equation(None, equation)
 
 
@@ -96,8 +96,8 @@ class B_and_B():
         return: None
         """
         eq = node.equation
-        equation = eq.create_equations_with_choices(col_dict, eq.cols[:], eq.rows[:],
-            eq.vals[:], eq.rhs[:], eq.cols_to_remove[:], eq.choices.copy())
+        equation = Equations(eq.cols[:], eq.rows[:], eq.vals[:],
+            eq.rhs[:], eq.cols_to_remove[:], eq.choices.copy(), col_dict)
         self.__init_equation(node, equation)
 
 

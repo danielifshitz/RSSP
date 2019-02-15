@@ -245,7 +245,7 @@ if __name__ == '__main__':
     BB = B_and_B(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"],
                 job1.cplex["ctype"], job1.cplex["colnames"], job1.cplex["rhs"],
                 job1.cplex["rownames"], job1.cplex["sense"], job1.cplex["rows"],
-                job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB, False)
+                job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB, True)
     choices, solution_data = BB.solve_algorithem()
     end = time.time()
     solution_data = "solution in %10f sec\n" % (end - start) + solution_data
