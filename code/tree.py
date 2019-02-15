@@ -3,12 +3,12 @@ from node import Node
 
 class Tree:
 
-    def __init__(self):
+    def __init__(self, queue_limit=10000):
         self.queue = []
         self.max_queue_size = 0
         self.num_of_nodes = 0
         self.max_depth = 0
-
+        self.queue_limit = queue_limit
 
     def add_node(self, father, equation):
         """
@@ -26,11 +26,12 @@ class Tree:
         if not node.is_leaf():
             insort(self.queue, node)
         # print the status of the solution if queue size changed
-        if self.max_queue_size != len(self.queue):
+        if self.max_queue_size < len(self.queue):
             self.max_queue_size = len(self.queue)
-            # print("queue size =", self.max_queue_size)
-            # print("num of nodes =", self.num_of_nodes)
-            # print("queue = ", [item.get_value() for item in self.queue])
+        # print("max queue size =", self.max_queue_size)
+        # print("num of nodes =", self.num_of_nodes)
+        # print("queue size =", len(self.queue))
+        # print("queue = ", [{item.get_value() : item.depth} for item in self.queue])
 
 
     def get_queue_head(self):

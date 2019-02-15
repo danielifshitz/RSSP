@@ -1,6 +1,6 @@
 import csv
 import cplex
-import os
+from os import getpid
 import time
 import constraint_equations
 import matplotlib.pyplot as plt
@@ -10,7 +10,7 @@ from branch_and_bound import B_and_B
 
 class Job:
 
-    def __init__(self, csv_path):
+    def __init__(self, csv_path, cplex_solution=False):
         self.N = 1e4
         self.resources = {}
         self.operations = {}
@@ -19,6 +19,7 @@ class Job:
             'rownames' : [], 'sense' : "", 'rows' : [], 'cols' : [], 'vals' : []}
         self.x_names = []
         self.UB = 0
+        self.cplex_solution = cplex_solution
         self.csv_problem(csv_path)
 
 
@@ -113,9 +114,11 @@ class Job:
         self.cplex["colnames"].append("F")
 
         # initialize ctype - b&b solution
-        self.cplex["ctype"] = 'C' * len(self.cplex["colnames"])
-        # self.cplex["ctype"] = 'I' * x_i_m_r_l_len
-        # self.cplex["ctype"] += 'C' * (len(self.cplex["colnames"]) - x_i_m_r_l_len)
+        if self.cplex_solution:
+            self.cplex["ctype"] = 'I' * x_i_m_r_l_len
+            self.cplex["ctype"] += 'C' * (len(self.cplex["colnames"]) - x_i_m_r_l_len)
+        else:
+            self.cplex["ctype"] = 'C' * len(self.cplex["colnames"])
 
         # initialize lb
         self.cplex["lb"] = [0] * len(self.cplex["colnames"])
@@ -236,16 +239,16 @@ class Job:
         plt.text(value["start"] + 0.1, start_y + 0.03, text, fontsize=8)
 
 if __name__ == '__main__':
-    print("pid =", os.getpid())
-    job1 = Job("data.csv")
+    print("pid =", getpid())
+    job1 = Job("problems\\Samaddar_Problem#16.csv", cplex_solution=False)
     print("|Xi,m,r,l| =", len(job1.x_names), "\n|equations| =", len(job1.cplex["rownames"]), "\nPrediction UB =", job1.UB)
-    input("press any key to continue\n")
+    # input("press any key to continue\n")
     print("starting solve")
     start = time.time()
     BB = B_and_B(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"],
                 job1.cplex["ctype"], job1.cplex["colnames"], job1.cplex["rhs"],
                 job1.cplex["rownames"], job1.cplex["sense"], job1.cplex["rows"],
-                job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB, True)
+                job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB, use_SP=True)
     choices, solution_data = BB.solve_algorithem()
     end = time.time()
     solution_data = "solution in %10f sec\n" % (end - start) + solution_data

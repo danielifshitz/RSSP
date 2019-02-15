@@ -18,7 +18,7 @@ class Node:
 
     def get_value(self):
         """
-        return node's value, which  calculeted at Equations
+        return node's value, which calculeted at Equations
         return: float
         """
         return self.equation.solution
@@ -30,4 +30,6 @@ class Node:
         return True is this node less the other node, Flase otherwise
         return: boolean
         """
-        return other.get_value() >= self.get_value()
+        if self.get_value() == other.get_value():
+            return self.depth >= other.depth
+        return self.get_value() < other.get_value()

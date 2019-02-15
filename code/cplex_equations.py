@@ -59,8 +59,11 @@ class Equations:
         Equations.num_of_x = num_of_x
 
 
-    def __populatebynonzero(self, prob):
-        # prob.parameters.mip.limits.nodes.set(1)
+    def __populatebynonzero(self, prob, disable_prints=True):
+        if disable_prints:
+            prob.set_warning_stream(None)
+            prob.set_results_stream(None)
+            prob.set_error_stream(None)
         prob.objective.set_sense(prob.objective.sense.minimize)
         prob.linear_constraints.add(rhs=self.rhs, senses=Equations.sense,
                                     names=Equations.rownames)
@@ -95,9 +98,6 @@ class Equations:
     def solve_milp(self, file_name=None):
         try:
             prob = cplex.Cplex()
-            prob.set_warning_stream(None)
-            prob.set_results_stream(None)
-            prob.set_error_stream(None)
             self.__populatebynonzero(prob)
             # start = prob.get_time()
             prob.solve()
@@ -129,10 +129,7 @@ class Equations:
         try:
             prob = cplex.Cplex()
             self.__populatebynonzero(prob)
-            # start = prob.get_time()
             prob.solve()
-            # time = prob.get_time() - start
-            # self.print_cplex_data(prob, time)
         except CplexError as exc:
             print(exc)
             return None

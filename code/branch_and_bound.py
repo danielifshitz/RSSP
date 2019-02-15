@@ -7,7 +7,7 @@ class B_and_B():
         self.best_equation = None
         self.solution_type = solution_type
         Equations.init_global_data(obj, ub, lb, ctype, colnames, rownames, sense, len(x_names))
-        self.tree = Tree()
+        self.tree = Tree(queue_limit=10000)
         if UB:
             self.UB = UB
         else:
