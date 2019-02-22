@@ -5,6 +5,7 @@ class B_and_B():
 
     def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, UB=float("inf"), use_SP=True):
         self.best_equation = None
+        self.number_of_best_solutions = 0
         Equations.init_global_data(obj, ub, lb, ctype, colnames, rownames, sense, len(x_names))
         self.tree = Tree(queue_limit=10000)
         self.UB = UB
@@ -45,6 +46,9 @@ class B_and_B():
         if solution and solution < self.UB:
             self.UB = solution
             self.best_equation = equation
+            self.number_of_best_solutions = 1
+        elif solution and solution == self.UB:
+            self.number_of_best_solutions += 1
 
 
     def __try_bound(self):
@@ -128,6 +132,7 @@ class B_and_B():
         solution_data = "created nodes = {}, max depth = {}, max queue size = {}".format(self.tree.num_of_nodes,
             self.tree.max_depth, self.tree.max_queue_size)
         try:
+            print("number of best solutions =", self.number_of_best_solutions)
             return self.best_equation.cplex_solution(), solution_data
         except:
             print("cann't find integer solution")

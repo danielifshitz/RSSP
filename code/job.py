@@ -242,9 +242,10 @@ class Job:
         plt.plot(x,y, linestyle=linestyle, linewidth=width)
         plt.text(value["start"] + 0.1, start_y + 0.03, text, fontsize=8)
 
+
 if __name__ == '__main__':
     print("pid =", getpid())
-    job1 = Job("problems/Samaddar_Problem#16.csv", cplex_solution=False)
+    job1 = Job("problems\\Problem_IAC16.csv", cplex_solution=False)
     print("|Xi,m,r,l| =", len(job1.x_names), "\n|equations| =", len(job1.cplex["rownames"]), "\nPrediction UB =", job1.UB)
     # input("press any key to continue\n")
     print("starting solve")
