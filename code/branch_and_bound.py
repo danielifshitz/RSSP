@@ -3,23 +3,17 @@ from tree import Tree
 
 class B_and_B():
 
-    def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, UB=None, use_SP=True, solution_type="minimize"):
+    def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, UB=float("inf"), use_SP=True):
         self.best_equation = None
-        self.solution_type = solution_type
         Equations.init_global_data(obj, ub, lb, ctype, colnames, rownames, sense, len(x_names))
         self.tree = Tree(queue_limit=10000)
-        if UB:
-            self.UB = UB
-        else:
-            if solution_type == "minimize":
-                self.UB = float("inf")
-            elif solution_type == "maximize":
-                self.UB = -float("inf")
+        self.UB = UB
         if use_SP:
             self.__create_SPs(1, rhs, rows, cols, vals, x_names)
+            # print([round(node.get_solution(),3) for node in self.tree.queue])
         else:
             equation = Equations(cols, rows, vals, rhs, x_names, {}, {})
-            self.__init_equation(None, equation, "problem.lp")
+            self.__init_equation(equation, file_name="problem.lp")
 
 
     def __create_SPs(self, op, rhs, rows, cols, vals, x_names, needed_x=[]):
@@ -38,7 +32,7 @@ class B_and_B():
         if not [s for s in x_names if "X" + str(op) in s]:
             equation = Equations(cols[:], rows[:], vals[:], rhs[:], x_names[:],{},
                 {elem : 0 for elem in x_names if elem not in needed_x})
-            self.__init_equation(None, equation)
+            self.__init_equation(equation)
 
 
     def __update_UB(self, equation):
@@ -48,10 +42,7 @@ class B_and_B():
         return: None
         """
         solution = equation.solution
-        if solution and self.solution_type == "minimize" and solution < self.UB:
-            self.UB = solution
-            self.best_equation = equation
-        elif solution and self.solution_type == "maximize" and solution > self.UB:
+        if solution and solution < self.UB:
             self.UB = solution
             self.best_equation = equation
 
@@ -64,19 +55,17 @@ class B_and_B():
         """
         next_node = self.tree.get_queue_head()
         while next_node: # while the queue not empty
-            if self.solution_type == "minimize" and next_node.get_value() > self.UB:
-                next_node = self.tree.get_queue_head() # take another node from the queue
-            elif self.solution_type == "maximize" and next_node.get_value() < self.UB:
+            if next_node.get_solution() > self.UB:
                 next_node = self.tree.get_queue_head() # take another node from the queue
             else:
                 return next_node
         return None
 
 
-    def __init_equation(self, node, equation, file_name=None):
+    def __init_equation(self, equation, depth=0, file_name=None):
         """
         create new node from the equation and add it to tree queue
-        node: Node, father node
+        depth: int, next node depth
         equation: Equation, cplex data
         file_name: string, where save the cplex solution
         return: None
@@ -85,7 +74,7 @@ class B_and_B():
         if solution and equation.integer_solution:
             self.__update_UB(equation)
         elif solution:
-            self.tree.add_node(node, equation)
+            self.tree.add_node(equation, depth)
     
     
     def create_node(self, node, col_dict):
@@ -98,7 +87,7 @@ class B_and_B():
         eq = node.equation
         equation = Equations(eq.cols[:], eq.rows[:], eq.vals[:],
             eq.rhs[:], eq.cols_to_remove[:], eq.choices.copy(), col_dict)
-        self.__init_equation(node, equation)
+        self.__init_equation(equation, node.depth + 1)
 
 
     def set_x_to_one(self, node):
@@ -139,7 +128,7 @@ class B_and_B():
         solution_data = "created nodes = {}, max depth = {}, max queue size = {}".format(self.tree.num_of_nodes,
             self.tree.max_depth, self.tree.max_queue_size)
         try:
-            return self.best_equation.print_cplex_solution(), solution_data
+            return self.best_equation.cplex_solution(), solution_data
         except:
             print("cann't find integer solution")
             return None

@@ -1,19 +1,18 @@
 from mode import Mode
 class Operation:
 
-    def __init__(self, num_of_op):
-        self.num_of_op = num_of_op
+    def __init__(self, number):
+        self.number = number
         self.modes = []
         self.all_resources = {}
-        self.global_start_time = -1
 
 
-    def add_mode_to_operation(self,num_mode,resource,start,dur):
+    def add_mode(self, mode_number, resource, start, dur):
         """
         add mode to operation with the needed resource for the mode.
         if it is a new mode number, create him.
         save the resource in all_resources list.
-        num_mode: string - the number of the mode
+        mode_number: string - the number of the mode
         resource: Resource - a resource that the mode need
         resource_start: float - local start time of the resource in the mode
         resource_dur: float - the duretion of the resource usage
@@ -21,18 +20,18 @@ class Operation:
         """
         for mode in self.modes:
             # check if mode exists
-            if mode.num_mode == num_mode:
+            if mode.mode_number == mode_number:
                 mode.add_resource(resource, start, dur)
                 if resource not in self.all_resources:
-                    self.all_resources[resource] = [num_mode]
+                    self.all_resources[resource] = [mode_number]
                 else:
-                    self.all_resources[resource].append(num_mode)
+                    self.all_resources[resource].append(mode_number)
                 return
         # if it is new mode
-        mode = Mode(num_mode,self.num_of_op)
+        mode = Mode(mode_number,self.number)
         mode.add_resource(resource, start, dur)
         self.modes.append(mode)
         if resource not in self.all_resources:
-            self.all_resources[resource] = [num_mode]
+            self.all_resources[resource] = [mode_number]
         else:
-            self.all_resources[resource].append(num_mode)
+            self.all_resources[resource].append(mode_number)

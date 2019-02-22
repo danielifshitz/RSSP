@@ -1,9 +1,9 @@
 class Mode:
 
-    def __init__(self, num_mode, op_num):
-        self.num_mode = num_mode
-        self.op_num = op_num
-        self.needed_resources = []
+    def __init__(self, mode_number, op_number):
+        self.mode_number = mode_number
+        self.op_number = op_number
+        self.resources = []
         self.r_tag = None
         self.tim = 0
 
@@ -16,8 +16,8 @@ class Mode:
         resource_dur: float - the duretion of the resource usage
         return: None
         """
-        self.needed_resources.append(resource)
-        resource.add_mode(self.op_num, self.num_mode, resource_start, resource_dur)
+        self.resources.append(resource)
+        resource.add_mode(self.op_number, self.mode_number, resource_start, resource_dur)
 
 
     def find_rtag(self):
@@ -26,7 +26,7 @@ class Mode:
         return: None
         """
         min = float('inf')
-        for resource in self.needed_resources:
+        for resource in self.resources:
             if resource.size <= min:
                 min = resource.size
                 self.r_tag = resource
@@ -39,8 +39,8 @@ class Mode:
         return: None
         """
         max = 0
-        op_mode = self.op_num + ',' + self.num_mode
-        for resource in self.needed_resources:
+        op_mode = self.op_number + ',' + self.mode_number
+        for resource in self.resources:
             sum = resource.usage[op_mode]["start_time"] + resource.usage[op_mode]["duration"]
             if sum > max: max = sum
         self.tim = max

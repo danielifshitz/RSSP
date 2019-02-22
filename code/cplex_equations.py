@@ -125,7 +125,7 @@ class Equations:
         return self.solution
 
     
-    def print_cplex_solution(self):
+    def cplex_solution(self):
         try:
             prob = cplex.Cplex()
             self.__populatebynonzero(prob)

@@ -10,7 +10,7 @@ class Tree:
         self.max_depth = 0
         self.queue_limit = queue_limit
 
-    def add_node(self, father, equation):
+    def add_node(self, equation, depth=0):
         """
         add new node under father node.
         insert the new node to the queue if it is not leaf (integer solution)
@@ -18,9 +18,9 @@ class Tree:
         equation: Equation
         return: none
         """
-        if father and father.depth >= self.max_depth:
-            self.max_depth += 1
-        node = Node(equation, father)
+        if depth == self.max_depth:
+            self.max_depth = depth + 1
+        node = Node(equation, depth)
         self.num_of_nodes += 1
         # check if the new node have integer solution
         if not node.is_leaf():
@@ -31,7 +31,7 @@ class Tree:
         # print("max queue size =", self.max_queue_size)
         # print("num of nodes =", self.num_of_nodes)
         # print("queue size =", len(self.queue))
-        # print("queue = ", [{item.get_value() : item.depth} for item in self.queue])
+        # print("queue = ", [{item.get_solution() : item.depth} for item in self.queue])
 
 
     def get_queue_head(self):

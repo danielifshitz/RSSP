@@ -41,7 +41,7 @@ class Job:
                 if row["operation"] not in self.operations:
                     self.operations[row["operation"]] = Operation(row["operation"])
                 # add mode to operation with all relevent data
-                self.operations[row["operation"]].add_mode_to_operation(row["mode"], self.resources[row["resource"]], float(row["start"]), float(row["duration"]))
+                self.operations[row["operation"]].add_mode(row["mode"], self.resources[row["resource"]], float(row["start"]), float(row["duration"]))
                 # save the preferences for every operation
                 for op in row["preferences"].split(";"):
                     if op:
@@ -94,10 +94,10 @@ class Job:
         # add all Xi,m,r,l to colnames list
         for operation in self.operations.values():
             for mode in operation.modes:
-                for resource in mode.needed_resources:
+                for resource in mode.resources:
                     for index in range(1, resource.size + 1):
-                        self.cplex["colnames"].append("X{},{},{},{}".format(operation.num_of_op, 
-                            mode.num_mode, resource.number, index))
+                        self.cplex["colnames"].append("X{},{},{},{}".format(operation.number,
+                            mode.mode_number, resource.number, index))
 
         self.x_names = self.cplex["colnames"][:]
         x_i_m_r_l_len = len(self.x_names)
@@ -169,10 +169,10 @@ class Job:
                     if not mode_found:
                         # from the mode save it number, needed resources and duration of the mode
                         for mode in op.modes:
-                            if name.startswith("X" + operation_name + "," + mode.num_mode):
+                            if name.startswith("X" + operation_name + "," + mode.mode_number):
                                 operations[operation_name]["duration"] = mode.tim
-                                resources = mode.needed_resources
-                                choices_modes.append("operation " + operation_name + "\nmode " + str(mode.num_mode))
+                                resources = mode.resources
+                                choices_modes.append("operation " + operation_name + "\nmode " + str(mode.mode_number))
                                 mode_found = True
                     # remove from Xi,m,r,l the X and split the rest by comma
                     i, m, r, l = name[1:].split(",")
@@ -232,15 +232,19 @@ class Job:
         text: string, what to write in the rectangle
         return: None
         """
-        y = [start_y, start_y, end_y, end_y, start_y]
+        if text:
+            linestyle = "-"
+        else:
+            linestyle = ":"
+        y = [start_y + 0.01, start_y + 0.01, end_y - 0.01, end_y - 0.01, start_y + 0.01]
         x = [value["start"], value["start"] + value["duration"],
              value["start"] + value["duration"], value["start"], value["start"]]
-        plt.plot(x,y, linewidth=width)
+        plt.plot(x,y, linestyle=linestyle, linewidth=width)
         plt.text(value["start"] + 0.1, start_y + 0.03, text, fontsize=8)
 
 if __name__ == '__main__':
     print("pid =", getpid())
-    job1 = Job("problems\\Samaddar_Problem#16.csv", cplex_solution=False)
+    job1 = Job("problems/Samaddar_Problem#16.csv", cplex_solution=False)
     print("|Xi,m,r,l| =", len(job1.x_names), "\n|equations| =", len(job1.cplex["rownames"]), "\nPrediction UB =", job1.UB)
     # input("press any key to continue\n")
     print("starting solve")
@@ -251,5 +255,5 @@ if __name__ == '__main__':
                 job1.cplex["cols"], job1.cplex["vals"], job1.x_names, job1.UB, use_SP=True)
     choices, solution_data = BB.solve_algorithem()
     end = time.time()
-    solution_data = "solution in %10f sec\n" % (end - start) + solution_data
+    solution_data = "solution in%10f sec\n" % (end - start) + solution_data
     job1.draw_solution(choices, solution_data)
