@@ -94,7 +94,6 @@ class Equations:
         if file_name:
             prob.write(file_name)
 
-
     def solve_milp(self, file_name=None):
         try:
             prob = cplex.Cplex()
