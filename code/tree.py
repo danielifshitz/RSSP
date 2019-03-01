@@ -38,8 +38,8 @@ class Tree:
         # if the queue size is bigger then the queue limit, turn on thread flag
         if self.queue_limit < len(self.queue) and not self.use_threads:
             self.use_threads = True
-        # if the queue size is less then the 10% of queue limit, turn off thread flag
-        elif self.queue_limit % 10 > len(self.queue) and self.use_threads:
+        # if the queue size is less then the 1% + 1 of queue limit, turn off thread flag
+        elif self.queue_limit / 100 + 1 > len(self.queue) and self.use_threads:
             self.use_threads = False
         # save max queue size
         if self.max_queue_size < len(self.queue):
