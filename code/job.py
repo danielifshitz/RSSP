@@ -247,14 +247,13 @@ if __name__ == '__main__':
     print("pid =", getpid())
     job1 = Job("problems/Samaddar_Problem#1.csv", cplex_solution=False)
     print("|Xi,m,r,l| =", len(job1.x_names), "\n|equations| =", len(job1.cplex["rownames"]), "\nPrediction UB =", job1.UB)
-    # input("press any key to continue\n")
     print("starting solve")
     start = time.time()
     BB = B_and_B(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"], job1.cplex["ctype"],
                 job1.cplex["colnames"], job1.cplex["rhs"], job1.cplex["rownames"],
                 job1.cplex["sense"], job1.cplex["rows"], job1.cplex["cols"], job1.cplex["vals"],
                 job1.x_names, job1.UB, use_SP=False, queue_limit=20)
-    choices, solution_data = BB.solve_algorithem()
+    choices, solution_data = BB.solve_algorithem(disable_prints=False)
     end = time.time()
     solution_data = "solution in %10f sec\n" % (end - start) + str(solution_data)
     if choices and solution_data:

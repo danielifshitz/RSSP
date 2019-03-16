@@ -91,6 +91,7 @@ class Equations:
                 prob.solution.progress.get_num_nodes_processed()))
         print("Deterministic time = {:.2} ({:.2} ticks/sec)".format(
             prob.get_dettime(), prob.get_dettime()/time))
+        print("solution method =", print(prob.solution.get_method()))
         if file_name:
             prob.write(file_name)
 
@@ -124,10 +125,10 @@ class Equations:
         return self.solution
 
     
-    def cplex_solution(self):
+    def cplex_solution(self, disable_prints):
         try:
             prob = cplex.Cplex()
-            self.__populatebynonzero(prob)
+            self.__populatebynonzero(prob, disable_prints=disable_prints)
             prob.solve()
         except CplexError as exc:
             print(exc)

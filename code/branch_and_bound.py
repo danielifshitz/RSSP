@@ -57,7 +57,7 @@ class B_and_B():
         """
         self.UB_lock.acquire()
         solution = equation.solution
-        print("solution =", solution)
+        print("found UB that is eqauls to", solution)
         if solution and solution < self.UB:
             self.UB = solution
             self.best_equation = equation
@@ -175,7 +175,7 @@ class B_and_B():
     #         self.finished_semaphore.release()
 
 
-    def solve_algorithem(self, workers=2):
+    def solve_algorithem(self, workers=2, disable_prints=True):
         """
         run the branch and bound algorithm to find the best solution for the equation.
         use threads if the queue is bigger than the queue limit.
@@ -223,7 +223,7 @@ class B_and_B():
             self.tree.max_depth, self.tree.max_queue_size)
         try:
             print("number of best solutions =", self.number_of_best_solutions)
-            return self.best_equation.cplex_solution(), solution_data
+            return self.best_equation.cplex_solution(disable_prints), solution_data
         except:
             print("cann't find integer solution")
             return None, None
