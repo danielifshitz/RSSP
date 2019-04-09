@@ -2,18 +2,16 @@ from cplex_equations import Equations
 from tree import Tree
 from cplex import infinity
 from concurrent import futures
-from threading import Semaphore, active_count, Lock
+from threading import Lock
 
 class B_and_B():
 
-    def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, UB=float("inf"), use_SP=True, queue_limit=infinity):
+    def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, UB=float("inf"), use_SP=True):
         self.UB_lock = Lock()
-        self.finished_semaphore = Semaphore(0)
-        self.running_semaphore = Semaphore(0)
         self.best_equation = None
         self.number_of_best_solutions = 0
         Equations.init_global_data(obj, ub, lb, ctype, colnames, rownames, sense, len(x_names))
-        self.tree = Tree(queue_limit)
+        self.tree = Tree()
         self.UB = UB
         self.use_SP = use_SP
         if use_SP:
@@ -21,8 +19,6 @@ class B_and_B():
             # print([round(node.get_solution(),3) for node in self.tree.queue])
         else:
             equation = Equations(cols, rows, vals, rhs, x_names, {}, {})
-            # increase the number of the node in the queue by 1 by release the semaphore
-            self.running_semaphore.release()
             self.__init_equation(equation, file_name="problem.lp")
 
 
@@ -42,7 +38,6 @@ class B_and_B():
         if not [s for s in x_names if "X" + str(op) in s]:
             equation = Equations(cols[:], rows[:], vals[:], rhs[:], x_names[:],{},
                 {elem : 0 for elem in x_names if elem not in needed_x})
-            self.running_semaphore.release()
             self.__init_equation(equation)
 
 
@@ -57,7 +52,7 @@ class B_and_B():
         """
         self.UB_lock.acquire()
         solution = equation.solution
-        print("found UB that is eqauls to", solution)
+        print("found UB that is eqauls to %10f" % solution)
         if solution and solution < self.UB:
             self.UB = solution
             self.best_equation = equation
@@ -74,16 +69,10 @@ class B_and_B():
         if the queue is empty but there are threads that not finished yet, wait for them.
         return: Node if fuond better or equals solution then UB or None if the queue is empty
         """
-        # if there are running or finished thread, try decrease the number of nodes in the queue by acquire semaphore
-        if self.finished_semaphore._value or self.running_semaphore._value:
-            self.finished_semaphore.acquire()
         next_node = self.tree.get_queue_head()
         while next_node: # while the queue not empty
             # if the node worth then the UB, take another node
             if next_node.get_solution() > self.UB:
-                # if there are running or finished thread, try decrease the number of nodes in the queue by acquire semaphore
-                if self.finished_semaphore._value or self.running_semaphore._value:
-                    self.finished_semaphore.acquire()
                 next_node = self.tree.get_queue_head() # take another node from the queue
             else:
                 return next_node
@@ -94,7 +83,6 @@ class B_and_B():
     def __init_equation(self, equation, depth=0, file_name=None):
         """
         create new node from the equation and add it to the queue.
-        after the node was created, release semaphore as sign that there is new node in the queue.
         equation: Equation, cplex equation
         depth: int, next node depth
         file_name: string, where save the cplex solution, or None
@@ -105,17 +93,9 @@ class B_and_B():
         # if the solution is integer, check the UB
         if solution and equation.integer_solution:
             self.__update_UB(equation)
-        # if the solution better or equals to the UB, save it in the queue
+        # if the solution better or equals to the UB, add it to the queue
         elif solution and solution <= self.UB:
             self.tree.add_nodes(equation, depth)
-            # increase the number on nodes in the queue by 1
-            self.finished_semaphore.release()
-        # else, drop it, this node is not needed
-        # decrease the number of running threads
-        self.running_semaphore.acquire()
-        # if there are no more running or finished thread, wake up the __try_bound function by increase the finished thread semaphore
-        if not self.finished_semaphore._value and not self.running_semaphore._value:
-            self.finished_semaphore.release()
     
     
     def create_node(self, node, col_dict):
@@ -164,61 +144,35 @@ class B_and_B():
     #     for x in node.equation.cols_to_remove:
     #         other_i, other_m, other_r = x[1:-2].split(",")
     #         if i == other_i and m == other_m and r == other_r:
-    #             self.running_semaphore.release()
     #             self.set_x_to_one(node, x)
     #             zero_choices[x] = 0
     #     if not self.use_SP:
-    #         self.running_semaphore.release()
     #         self.create_node(node, zero_choices)
-    #     self.running_semaphore.acquire()
-    #     if not self.finished_semaphore._value and not self.running_semaphore._value:
-    #         self.finished_semaphore.release()
 
 
-    def solve_algorithem(self, workers=2, disable_prints=True):
+    def solve_algorithem(self, disable_prints=True):
         """
         run the branch and bound algorithm to find the best solution for the equation.
-        use threads if the queue is bigger than the queue limit.
-        every time we want to create new node we need to increase the number of running threads semaphore.
         after the node where created/began to created, take node from the queue.
         when the queue is empty and the algorithm end, solve the best equation one more time
         to get all the chosen value for the Xi,m,r,l.
-        workers: number of thread in the thread pool
         return: dict, string: dict - the parameters name and chosen values,
             string - number of created nodes, max depth and max queue size
         """
-        # decrease the number of the node in the queue by 1 by acquire the semaphore
-        self.finished_semaphore.acquire()
         next_node = self.tree.get_queue_head()
-        # create thread pool
-        with futures.ThreadPoolExecutor(max_workers=workers) as executor:
-            # run while the node not None which mean that the algorithm not end
-            while next_node:
-                # TODO check if this condition is necessary
-                if next_node.equation.cols_to_remove:
-                    # we create 2 new nodes so we increase the number of running threads by 2
-                    self.running_semaphore.release()
-                    self.running_semaphore.release()
-                    # create dictionary with one Xi,m,r,l equals to zero
-                    col_dict = {next_node.equation.cols_to_remove[0] : 0}
-                    # if threads needed, use executor to add the jobs to thread pool
-                    if self.tree.use_threads:
-                        # son with Xi,m,r,l = 0
-                        executor.submit(self.create_node, next_node, col_dict)
-                        # son with Xi,m,r,l = 1
-                        executor.submit(self.set_x_to_one, next_node, next_node.equation.cols_to_remove[0])
-                    else:
-                        # son with Xi,m,r,l = 0
-                        self.create_node(next_node, col_dict)
-                        # son with Xi,m,r,l = 1
-                        self.set_x_to_one(next_node, next_node.equation.cols_to_remove[0])
-                    # self.running_semaphore.release()
-                    # if self.tree.use_threads:
-                    #     executor.submit(self.choice_resource, next_node)
-                    # else:
-                    #     self.choice_resource(next_node)
-                # check if we can do bound on the tree and take next node from the queue
-                next_node = self.__try_bound()
+        # run while the node not None which mean that the algorithm not end
+        while next_node:
+            # TODO check if this condition is necessary
+            if next_node.equation.cols_to_remove:
+                # create dictionary with one Xi,m,r,l equals to zero
+                col_dict = {next_node.equation.cols_to_remove[0] : 0}
+                # son with Xi,m,r,l = 0
+                self.create_node(next_node, col_dict)
+                # son with Xi,m,r,l = 1
+                self.set_x_to_one(next_node, next_node.equation.cols_to_remove[0])
+                # self.choice_resource(next_node)
+            # check if we can do bound on the tree and take next node from the queue
+            next_node = self.__try_bound()
         solution_data = "created nodes = {}, max depth = {}, max queue size = {}".format(self.tree.num_of_nodes,
             self.tree.max_depth, self.tree.max_queue_size)
         try:
