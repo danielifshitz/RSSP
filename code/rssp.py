@@ -121,6 +121,8 @@ def arguments_parser():
         dest="path", help='problem number')
     parser.add_argument('-c', '--cplex_auto_solution', action='store_true',
         help='use cplex librarys for full MILP solution')
+    parser.add_argument('-l', '--init_resource_by_labels', action='store_true',
+        help='try initialze evry resources lables one by one')
     parser.add_argument('--sp', action='store_true', help='divide the problem to SP\'s')
     return parser.parse_args()
 
@@ -139,7 +141,7 @@ def main():
                 job1.cplex["colnames"], job1.cplex["rhs"], job1.cplex["rownames"],
                 job1.cplex["sense"], job1.cplex["rows"], job1.cplex["cols"], job1.cplex["vals"],
                 job1.x_names, job1.UB, args.sp)
-    choices, solution_data = BB.solve_algorithem(disable_prints=False)
+    choices, solution_data = BB.solve_algorithem(args.init_resource_by_labels, disable_prints=False)
     end = time.time()
     solution_data = "solution in %10f sec\n" % (end - start) + str(solution_data)
     if choices and solution_data:

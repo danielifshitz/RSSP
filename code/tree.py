@@ -28,8 +28,7 @@ class Tree:
             heapq.heappush(self.queue, node)
             # self.queue.append(node)
         # save max queue size
-        if self.max_queue_size < len(self.queue):
-            self.max_queue_size = len(self.queue)
+        self.max_queue_size = max(self.max_queue_size, len(self.queue))
         # print("max queue size =", self.max_queue_size)
         # print("node solution =", node.get_solution())
         # print("num of nodes =", self.num_of_nodes)

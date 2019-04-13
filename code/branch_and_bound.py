@@ -138,19 +138,28 @@ class B_and_B():
         self.create_node(node, choices)
 
 
-    # def choice_resource(self, node):
-    #     i, m, r = node.equation.cols_to_remove[0][1:-2].split(",")
-    #     zero_choices = {}
-    #     for x in node.equation.cols_to_remove:
-    #         other_i, other_m, other_r = x[1:-2].split(",")
-    #         if i == other_i and m == other_m and r == other_r:
-    #             self.set_x_to_one(node, x)
-    #             zero_choices[x] = 0
-    #     if not self.use_SP:
-    #         self.create_node(node, zero_choices)
+    def zero_one_initialize(self, node):
+        # create dictionary with one Xi,m,r,l equals to zero
+        col_dict = {node.equation.cols_to_remove[0] : 0}
+        # son with Xi,m,r,l = 0
+        self.create_node(node, col_dict)
+        # son with Xi,m,r,l = 1
+        self.set_x_to_one(node, node.equation.cols_to_remove[0])
 
 
-    def solve_algorithem(self, disable_prints=True):
+    def choice_resource(self, node):
+        i, m, r = node.equation.cols_to_remove[0][1:-2].split(",")
+        zero_choices = {}
+        for x in node.equation.cols_to_remove:
+            other_i, other_m, other_r = x[1:-2].split(",")
+            if i == other_i and m == other_m and r == other_r:
+                self.set_x_to_one(node, x)
+                zero_choices[x] = 0
+        if not self.use_SP:
+            self.create_node(node, zero_choices)
+
+
+    def solve_algorithem(self, init_resource_labels=False, disable_prints=True):
         """
         run the branch and bound algorithm to find the best solution for the equation.
         after the node where created/began to created, take node from the queue.
@@ -159,18 +168,16 @@ class B_and_B():
         return: dict, string: dict - the parameters name and chosen values,
             string - number of created nodes, max depth and max queue size
         """
+        if init_resource_labels:
+            initialize_x_function = self.zero_one_initialize
+        else:
+            initialize_x_function = self.choice_resource
         next_node = self.tree.get_queue_head()
         # run while the node not None which mean that the algorithm not end
         while next_node:
             # TODO check if this condition is necessary
             if next_node.equation.cols_to_remove:
-                # create dictionary with one Xi,m,r,l equals to zero
-                col_dict = {next_node.equation.cols_to_remove[0] : 0}
-                # son with Xi,m,r,l = 0
-                self.create_node(next_node, col_dict)
-                # son with Xi,m,r,l = 1
-                self.set_x_to_one(next_node, next_node.equation.cols_to_remove[0])
-                # self.choice_resource(next_node)
+                initialize_x_function(next_node)
             # check if we can do bound on the tree and take next node from the queue
             next_node = self.__try_bound()
         solution_data = "created nodes = {}, max depth = {}, max queue size = {}".format(self.tree.num_of_nodes,

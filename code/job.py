@@ -15,11 +15,10 @@ class Job:
             'rownames' : [], 'sense' : "", 'rows' : [], 'cols' : [], 'vals' : []}
         self.x_names = []
         self.UB = 0
-        self.cplex_solution = cplex_solution
-        self.csv_problem(csv_path)
+        self.csv_problem(csv_path, cplex_solution)
 
 
-    def csv_problem(self, csv_path):
+    def csv_problem(self, csv_path, cplex_solution):
         """
         read from csv file the problem and initialize job attributes.
         create resources, operations and initialize the operations with modes
@@ -53,7 +52,7 @@ class Job:
                     self.preferences[op] = list(set(preferences))
 
         self.__find_rtag_and_tim()
-        self.__init_cplex_variable_parameters()
+        self.__init_cplex_variable_parameters(cplex_solution)
         self.__find_UB()
         self.__create_equations()
 
@@ -82,7 +81,7 @@ class Job:
             self.UB += max_t_im
 
 
-    def __init_cplex_variable_parameters(self):
+    def __init_cplex_variable_parameters(self, cplex_solution):
         """
         initialize cplex dict according to the problem data.
         return: None
@@ -110,7 +109,7 @@ class Job:
         self.cplex["colnames"].append("F")
 
         # initialize ctype - b&b solution
-        if self.cplex_solution:
+        if cplex_solution:
             self.cplex["ctype"] = 'I' * x_i_m_r_l_len
             self.cplex["ctype"] += 'C' * (len(self.cplex["colnames"]) - x_i_m_r_l_len)
         else:
