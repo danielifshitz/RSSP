@@ -169,9 +169,9 @@ class B_and_B():
             string - number of created nodes, max depth and max queue size
         """
         if init_resource_labels:
-            initialize_x_function = self.zero_one_initialize
-        else:
             initialize_x_function = self.choice_resource
+        else:
+            initialize_x_function = self.zero_one_initialize
         next_node = self.tree.get_queue_head()
         # run while the node not None which mean that the algorithm not end
         while next_node:

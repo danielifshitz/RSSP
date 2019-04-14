@@ -117,13 +117,16 @@ def check_problem_number(problem_number):
 def arguments_parser():
     usage = 'usage...'
     parser = argparse.ArgumentParser(description=usage, prog='RSSP')
-    parser.add_argument('-p', type=check_problem_number ,required=True,
-        dest="path", help='problem number')
+    parser.add_argument('-p', '--problem_number', type=check_problem_number ,required=True,
+        help='the wanted problem number to be solved')
     parser.add_argument('-c', '--cplex_auto_solution', action='store_true',
         help='use cplex librarys for full MILP solution')
     parser.add_argument('-l', '--init_resource_by_labels', action='store_true',
-        help='try initialze evry resources lables one by one')
-    parser.add_argument('--sp', action='store_true', help='divide the problem to SP\'s')
+        help='try initialze every resources lables one by one')
+    parser.add_argument('-sp', action='store_true',
+        help='divide the problem to SP\'s')
+    parser.add_argument('-pf', '--sort_x_by_pref',action='store_true',
+        help='sort the Xi,m,r,l according to the preferences of the operations')
     return parser.parse_args()
 
 
@@ -133,7 +136,7 @@ def main():
         args = arguments_parser()
     except:
         return 0
-    job1 = Job(args.path, args.cplex_auto_solution)
+    job1 = Job(args.problem_number, args.cplex_auto_solution, args.sort_x_by_pref)
     print("|Xi,m,r,l| =", len(job1.x_names), "\n|equations| =", len(job1.cplex["rownames"]), "\nPrediction UB =", job1.UB)
     print("starting solve")
     start = time.time()

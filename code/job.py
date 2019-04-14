@@ -6,7 +6,7 @@ from job_resource import Resource
 
 class Job:
 
-    def __init__(self, csv_path, cplex_solution=False):
+    def __init__(self, csv_path, cplex_solution=False, sort_x=False):
         self.N = 1e4
         self.resources = {}
         self.operations = {}
@@ -15,10 +15,10 @@ class Job:
             'rownames' : [], 'sense' : "", 'rows' : [], 'cols' : [], 'vals' : []}
         self.x_names = []
         self.UB = 0
-        self.csv_problem(csv_path, cplex_solution)
+        self.csv_problem(csv_path, cplex_solution, sort_x)
 
 
-    def csv_problem(self, csv_path, cplex_solution):
+    def csv_problem(self, csv_path, cplex_solution, sort_x):
         """
         read from csv file the problem and initialize job attributes.
         create resources, operations and initialize the operations with modes
@@ -45,13 +45,15 @@ class Job:
                         else:
                             self.preferences[row["operation"]] = [self.operations[op]]
                     else:
-                        self.preferences[row["operation"]] = None
+                        self.preferences[row["operation"]] = []
 
             for op, preferences in self.preferences.items():
                 if preferences:
                     self.preferences[op] = list(set(preferences))
 
         self.__find_rtag_and_tim()
+        if sort_x:
+            self.__sort_x_by_preferences()
         self.__init_cplex_variable_parameters(cplex_solution)
         self.__find_UB()
         self.__create_equations()
@@ -66,6 +68,21 @@ class Job:
             for mode in op.modes:
                 mode.find_rtag()
                 mode.find_tim()
+
+
+    def __sort_x_by_preferences(self):
+        op_order = sorted(self.operations, key=lambda op: self.__sort_x_by_pref(self.preferences[op]))
+        operations = {}
+        for op in op_order:
+            operations[op] = self.operations[op]
+        self.operations = operations
+
+
+    def __sort_x_by_pref(self, op_list):
+        if not op_list:
+            return 0
+
+        return max([self.__sort_x_by_pref(self.preferences[op.number]) for op in op_list]) + 1
 
 
     def __find_UB(self):
