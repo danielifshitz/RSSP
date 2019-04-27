@@ -15,16 +15,52 @@ class Job:
             'rownames' : [], 'sense' : "", 'rows' : [], 'cols' : [], 'vals' : []}
         self.x_names = []
         self.UB = 0
-        self.csv_problem(csv_path, cplex_solution, sort_x)
+        self.csv_problem(csv_path, sort_x)
+        self.__find_rtag_and_tim()
+        if sort_x:
+            self.__sort_x_by_preferences()
+        self.__init_cplex_variable_parameters(cplex_solution)
+        self.__find_UB()
+        self.__create_equations()
 
 
-    def csv_problem(self, csv_path, cplex_solution, sort_x):
+    def sql_problem(self, csv_path, sort_x):
+        """
+
+        return: None
+        """
+        #
+        with open("problems/#2prob.csv", mode='r') as csv_file:
+            csv_reader = csv.DictReader(csv_file)
+            # from every line take operation, mode, resource, start time, duration
+            for row in csv_reader:
+                # if the resource first seen, create it
+                if row["resource"] not in self.resources:
+                    self.resources[row["resource"]] = Resource(row["resource"])
+                # if the operation first seen, create it and add it into preferences dictionary
+                if row["operation"] not in self.operations:
+                    self.operations[row["operation"]] = Operation(row["operation"])
+                    self.preferences[row["operation"]] = []
+                # add mode to operation with all relevent data
+                self.operations[row["operation"]].add_mode(row["mode"], self.resources[row["resource"]], float(row["start"]), float(row["duration"]))
+
+        # add preferences for every operation
+        with open("problems/#2pre.csv", mode='r') as csv_file:
+            csv_reader = csv.DictReader(csv_file)
+            # from every line take operation and preferences
+            for row in csv_reader:
+                if row["preferences"]:
+                    # add preference operation (Operation object) to the preferences dictionary
+                    self.preferences[row["operation"]].append(self.operations[row["preferences"]])
+
+
+    def csv_problem(self, csv_path, sort_x):
         """
         read from csv file the problem and initialize job attributes.
         create resources, operations and initialize the operations with modes
         return: None
         """
-        # read csv file as dict
+        # read csv file as dictionary
         with open(csv_path, mode='r') as csv_file:
             csv_reader = csv.DictReader(csv_file)
             # from every line take operation, mode, resource, start time, duration and preferences
@@ -50,13 +86,6 @@ class Job:
             for op, preferences in self.preferences.items():
                 if preferences:
                     self.preferences[op] = list(set(preferences))
-
-        self.__find_rtag_and_tim()
-        if sort_x:
-            self.__sort_x_by_preferences()
-        self.__init_cplex_variable_parameters(cplex_solution)
-        self.__find_UB()
-        self.__create_equations()
 
 
     def __find_rtag_and_tim(self):
@@ -100,7 +129,7 @@ class Job:
 
     def __init_cplex_variable_parameters(self, cplex_solution):
         """
-        initialize cplex dict according to the problem data.
+        initialize cplex dictionary according to the problem data.
         return: None
         """
         # add all Xi,m,r,l to colnames list
