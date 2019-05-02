@@ -1,4 +1,5 @@
 import csv
+import sqlite3
 from cplex import infinity
 import constraint_equations
 from job_operation import Operation
@@ -15,7 +16,7 @@ class Job:
             'rownames' : [], 'sense' : "", 'rows' : [], 'cols' : [], 'vals' : []}
         self.x_names = []
         self.UB = 0
-        self.csv_problem(csv_path, sort_x)
+        self.sql_problem(csv_path)
         self.__find_rtag_and_tim()
         if sort_x:
             self.__sort_x_by_preferences()
@@ -24,37 +25,44 @@ class Job:
         self.__create_equations()
 
 
-    def sql_problem(self, csv_path, sort_x):
+    def sql_problem(self, problem_ID):
         """
 
         return: None
         """
         #
-        with open("problems/#2prob.csv", mode='r') as csv_file:
-            csv_reader = csv.DictReader(csv_file)
-            # from every line take operation, mode, resource, start time, duration
-            for row in csv_reader:
-                # if the resource first seen, create it
-                if row["resource"] not in self.resources:
-                    self.resources[row["resource"]] = Resource(row["resource"])
-                # if the operation first seen, create it and add it into preferences dictionary
-                if row["operation"] not in self.operations:
-                    self.operations[row["operation"]] = Operation(row["operation"])
-                    self.preferences[row["operation"]] = []
-                # add mode to operation with all relevent data
-                self.operations[row["operation"]].add_mode(row["mode"], self.resources[row["resource"]], float(row["start"]), float(row["duration"]))
+        OPERATION = 0
+        MODE = 1
+        RESOURCE = 2
+        START = 3
+        DURATION = 4
+        PRE_OP = 1
+        conn = sqlite3.connect('data.db')
+        c = conn.cursor()
+        c.execute("SELECT Oper_ID, Mode_ID, Res_ID, Ts,(Tf - Ts) AS DUR FROM OpMoRe where Problem_ID = {0} ORDER BY Oper_ID, Mode_ID, Res_ID".format(problem_ID))
+        query = c.fetchall()
+        # from every line take operation,mode, resources and times
+        for row in query:
+            # if the resource first seen, create it
+            if str(row[RESOURCE]) not in self.resources:
+                self.resources[str(row[RESOURCE])] = Resource(str(row[RESOURCE]))
+            # if the operation first seen, create it and add it into preferences dictionary
+            if str(row[OPERATION]) not in self.operations:
+                self.operations[str(row[OPERATION])] = Operation(str(row[OPERATION]))
+                self.preferences[str(row[OPERATION])] = []
+            # add mode to operation with all relevent data
+            self.operations[str(row[OPERATION])].add_mode(str(row[MODE]), self.resources[str(row[RESOURCE])], row[START], row[DURATION])
 
-        # add preferences for every operation
-        with open("problems/#2pre.csv", mode='r') as csv_file:
-            csv_reader = csv.DictReader(csv_file)
-            # from every line take operation and preferences
-            for row in csv_reader:
-                if row["preferences"]:
-                    # add preference operation (Operation object) to the preferences dictionary
-                    self.preferences[row["operation"]].append(self.operations[row["preferences"]])
+        c.execute("SELECT Suc_Oper_ID, Pre_Oper_ID FROM Priority where Problem_ID = {0} ORDER BY Suc_Oper_ID, Pre_Oper_ID".format(problem_ID))
+        query = c.fetchall()
+        # from every line take operation and preferences
+        for row in query:
+            if row[PRE_OP]:
+                # add preference operation (Operation object) to the preferences dictionary
+                self.preferences[str(row[OPERATION])].append(self.operations[str(row[PRE_OP])])
 
 
-    def csv_problem(self, csv_path, sort_x):
+    def csv_problem(self, csv_path):
         """
         read from csv file the problem and initialize job attributes.
         create resources, operations and initialize the operations with modes

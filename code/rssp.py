@@ -117,7 +117,7 @@ def check_problem_number(problem_number):
 def arguments_parser():
     usage = 'usage...'
     parser = argparse.ArgumentParser(description=usage, prog='RSSP')
-    parser.add_argument('-p', '--problem_number', type=check_problem_number ,required=True,
+    parser.add_argument('-p', '--problem_number', required=True,
         help='the wanted problem number to be solved')
     parser.add_argument('-c', '--cplex_auto_solution', action='store_true',
         help='use cplex librarys for full MILP solution')
