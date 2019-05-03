@@ -1,5 +1,4 @@
-import csv
-import sqlite3
+from sqlite3 import connect
 from cplex import infinity
 import constraint_equations
 from job_operation import Operation
@@ -19,7 +18,7 @@ class Job:
         self.sql_problem(csv_path)
         self.__find_rtag_and_tim()
         if sort_x:
-            self.__sort_x_by_preferences()
+            self.operations = self.__sort_x_by_preferences()
         self.__init_cplex_variable_parameters(cplex_solution)
         self.__find_UB()
         self.__create_equations()
@@ -27,31 +26,37 @@ class Job:
 
     def sql_problem(self, problem_ID):
         """
-
+        read problrm data from the DB using sql querys and initialize all class parameters.
+        the DB contains 2 tables with problem data:
+            * OpMoRe: the start time and the duration of resource use by operation in some mode.
+            * Priority: operations and there preferences operations
+        from each table we take the relevant data by using the problem_ID.
+        problem_ID: number, the wanted problem number to be sulved
         return: None
         """
-        #
         OPERATION = 0
         MODE = 1
         RESOURCE = 2
         START = 3
         DURATION = 4
         PRE_OP = 1
-        conn = sqlite3.connect('data.db')
+        conn = connect('data.db')
         c = conn.cursor()
         c.execute("SELECT Oper_ID, Mode_ID, Res_ID, Ts,(Tf - Ts) AS DUR FROM OpMoRe where Problem_ID = {0} ORDER BY Oper_ID, Mode_ID, Res_ID".format(problem_ID))
         query = c.fetchall()
         # from every line take operation,mode, resources and times
         for row in query:
+            operation = str(row[OPERATION])
+            resource = str(row[RESOURCE])
             # if the resource first seen, create it
-            if str(row[RESOURCE]) not in self.resources:
-                self.resources[str(row[RESOURCE])] = Resource(str(row[RESOURCE]))
+            if resource not in self.resources:
+                self.resources[resource] = Resource(resource)
             # if the operation first seen, create it and add it into preferences dictionary
-            if str(row[OPERATION]) not in self.operations:
-                self.operations[str(row[OPERATION])] = Operation(str(row[OPERATION]))
-                self.preferences[str(row[OPERATION])] = []
+            if operation not in self.operations:
+                self.operations[operation] = Operation(operation)
+                self.preferences[operation] = []
             # add mode to operation with all relevent data
-            self.operations[str(row[OPERATION])].add_mode(str(row[MODE]), self.resources[str(row[RESOURCE])], row[START], row[DURATION])
+            self.operations[operation].add_mode(str(row[MODE]), self.resources[resource], row[START], row[DURATION])
 
         c.execute("SELECT Suc_Oper_ID, Pre_Oper_ID FROM Priority where Problem_ID = {0} ORDER BY Suc_Oper_ID, Pre_Oper_ID".format(problem_ID))
         query = c.fetchall()
@@ -59,41 +64,9 @@ class Job:
         for row in query:
             if row[PRE_OP]:
                 # add preference operation (Operation object) to the preferences dictionary
-                self.preferences[str(row[OPERATION])].append(self.operations[str(row[PRE_OP])])
+                self.preferences[operation].append(self.operations[str(row[PRE_OP])])
 
-
-    def csv_problem(self, csv_path):
-        """
-        read from csv file the problem and initialize job attributes.
-        create resources, operations and initialize the operations with modes
-        return: None
-        """
-        # read csv file as dictionary
-        with open(csv_path, mode='r') as csv_file:
-            csv_reader = csv.DictReader(csv_file)
-            # from every line take operation, mode, resource, start time, duration and preferences
-            for row in csv_reader:
-                # if the resource first seen, create it
-                if row["resource"] not in self.resources:
-                    self.resources[row["resource"]] = Resource(row["resource"])
-                # if the operation first seen, create it
-                if row["operation"] not in self.operations:
-                    self.operations[row["operation"]] = Operation(row["operation"])
-                # add mode to operation with all relevent data
-                self.operations[row["operation"]].add_mode(row["mode"], self.resources[row["resource"]], float(row["start"]), float(row["duration"]))
-                # save the preferences for every operation
-                for op in row["preferences"].split(";"):
-                    if op:
-                        if row["operation"] in self.preferences:
-                            self.preferences[row["operation"]].append(self.operations[op])
-                        else:
-                            self.preferences[row["operation"]] = [self.operations[op]]
-                    else:
-                        self.preferences[row["operation"]] = []
-
-            for op, preferences in self.preferences.items():
-                if preferences:
-                    self.preferences[op] = list(set(preferences))
+        conn.close()
 
 
     def __find_rtag_and_tim(self):
@@ -108,14 +81,28 @@ class Job:
 
 
     def __sort_x_by_preferences(self):
+        """
+        create operation dictionary that sort by the length of the preferences that each operation have.
+        the length of the preferences is defined as the max number of following operation that need to be done
+            to arrive to this operation.
+        return: dictionary of operaions
+        """
+        # create a list that contains all operations number and sorted by there preferences length
         op_order = sorted(self.operations, key=lambda op: self.__sort_x_by_pref(self.preferences[op]))
         operations = {}
+        # create dictionary of [operation number: operation object]
         for op in op_order:
             operations[op] = self.operations[op]
-        self.operations = operations
+        return operations
 
 
     def __sort_x_by_pref(self, op_list):
+        """
+        a recursive funcion that calculate the max number of operation that need to be pass to arrive
+            to operation with out preferences operations.
+        op_list: list of preferences operations that need to be checked
+        return: number, the langth from operation with out preferences operations
+        """
         if not op_list:
             return 0
 

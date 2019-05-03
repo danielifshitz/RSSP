@@ -2,6 +2,7 @@ from os import getpid, listdir
 import matplotlib.pyplot as plt
 import argparse
 import time
+from sqlite3 import connect
 from branch_and_bound import B_and_B
 from job import Job
 
@@ -15,7 +16,6 @@ def draw_solution(job_operations, choices, title):
     operations = {}
     choices_modes = []
     # for each operation collect which mode were selected, Tim and resources
-    # for operation_name, op in self.operations.items():
     for operation_name, op in job_operations:
         mode_found = False
         operations[operation_name] = {}
@@ -103,21 +103,25 @@ def drow_rectangle(start_y, end_y, value, width=2, text=""):
 
 
 def check_problem_number(problem_number):
-    path = ""
-    for file in listdir("problems"):
-        if file.endswith("#" + problem_number + ".csv"):
-            path = "problems/" + file
-            break
-    if not path:
+    """
+    check if the wanted problem exist and if not raise argparse exception.
+    return: number, the problem number if its exist
+    """
+    conn = connect('data.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM OpMoRe where Problem_ID = {0}".format(problem_number))
+    query = c.fetchall()
+    conn.close()
+    if not query:
         msg = "Problem number %r not exist" % problem_number
         raise argparse.ArgumentTypeError(msg)
-    return path
+    return problem_number
 
 
 def arguments_parser():
     usage = 'usage...'
     parser = argparse.ArgumentParser(description=usage, prog='RSSP')
-    parser.add_argument('-p', '--problem_number', required=True,
+    parser.add_argument('-p', '--problem_number', type=check_problem_number, required=True,
         help='the wanted problem number to be solved')
     parser.add_argument('-c', '--cplex_auto_solution', action='store_true',
         help='use cplex librarys for full MILP solution')
