@@ -6,7 +6,7 @@ from job_resource import Resource
 
 class Job:
 
-    def __init__(self, csv_path, cplex_solution=False, sort_x=False):
+    def __init__(self, csv_path, cplex_solution=False, sort_x=None, res_sort_type=False):
         self.N = 1e4
         self.resources = {}
         self.operations = {}
@@ -17,8 +17,13 @@ class Job:
         self.UB = 0
         self.sql_problem(csv_path)
         self.__find_rtag_and_tim()
-        if sort_x:
+        if sort_x == "pre":
             self.operations = self.__sort_x_by_preferences()
+            self.create_x_i_m_r_l()
+        elif sort_x == "res":
+            self.__sort_x_by_resources(res_sort_type)
+        else:
+            self.create_x_i_m_r_l()
         self.__init_cplex_variable_parameters(cplex_solution)
         self.__find_UB()
         self.__create_equations()
@@ -109,6 +114,14 @@ class Job:
         return max([self.__sort_x_by_pref(self.preferences[op.number]) for op in op_list]) + 1
 
 
+    def __sort_x_by_resources(self, reverse=False):
+        res_order = sorted(self.resources.values(), key=lambda resource: resource.size, reverse=reverse)
+        for resource in res_order:
+            for op_mode in resource.usage.keys():
+                for index in range(1, resource.size + 1):
+                    self.cplex["colnames"].append("X{},{},{}".format(op_mode, resource.number, index))
+
+
     def __find_UB(self):
         """
         find the UB to the problem by sum all the max(Tim) of every operation
@@ -122,11 +135,7 @@ class Job:
             self.UB += max_t_im
 
 
-    def __init_cplex_variable_parameters(self, cplex_solution):
-        """
-        initialize cplex dictionary according to the problem data.
-        return: None
-        """
+    def create_x_i_m_r_l(self):
         # add all Xi,m,r,l to colnames list
         for operation in self.operations.values():
             for mode in operation.modes:
@@ -135,6 +144,12 @@ class Job:
                         self.cplex["colnames"].append("X{},{},{},{}".format(operation.number,
                             mode.mode_number, resource.number, index))
 
+
+    def __init_cplex_variable_parameters(self, cplex_solution):
+        """
+        initialize cplex dictionary according to the problem data.
+        return: None
+        """
         self.x_names = self.cplex["colnames"][:]
         x_i_m_r_l_len = len(self.x_names)
         # add all Ti to colnames list

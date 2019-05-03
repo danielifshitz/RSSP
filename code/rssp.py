@@ -120,39 +120,42 @@ def check_problem_number(problem_number):
 
 def arguments_parser():
     usage = 'usage...'
-    parser = argparse.ArgumentParser(description=usage, prog='RSSP')
+    parser = argparse.ArgumentParser(description=usage, prog='rssp.py')
     parser.add_argument('-p', '--problem_number', type=check_problem_number, required=True,
         help='the wanted problem number to be solved')
     parser.add_argument('-c', '--cplex_auto_solution', action='store_true',
         help='use cplex librarys for full MILP solution')
     parser.add_argument('-l', '--init_resource_by_labels', action='store_true',
         help='try initialze every resources lables one by one')
-    parser.add_argument('-sp', action='store_true',
+    parser.add_argument('--sp', action='store_true',
         help='divide the problem to SP\'s')
-    parser.add_argument('-pf', '--sort_x_by_pref',action='store_true',
-        help='sort the Xi,m,r,l according to the preferences of the operations')
-    return parser.parse_args()
+    parser.add_argument('-s', '--sort_x_by', choices=['pre', 'res'],
+        help='sort the Xi,m,r,l according to the chooses sort')
+    parser.add_argument('-r', '--resource_sort_type', choices=['bigger', 'lower'],
+        help='sort the Xi,m,r,l by resources according to the chooses sort {bigger/lower}')
+    args = parser.parse_args()
+    if args.sort_x_by == "res" and not args.resource_sort_type:
+        msg = "when chooses sort x by resources, must be chooses the sort type {bigger/lower}"
+        raise parser.error(msg)
+    return args
 
 
 def main():
     print("pid =", getpid())
-    try:
-        args = arguments_parser()
-    except:
-        return 0
-    job1 = Job(args.problem_number, args.cplex_auto_solution, args.sort_x_by_pref)
-    print("|Xi,m,r,l| =", len(job1.x_names), "\n|equations| =", len(job1.cplex["rownames"]), "\nPrediction UB =", job1.UB)
+    args = arguments_parser()
+    job = Job(args.problem_number, args.cplex_auto_solution, args.sort_x_by, args.resource_sort_type == "lower")
+    print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB)
     print("starting solve")
     start = time.time()
-    BB = B_and_B(job1.cplex["obj"], job1.cplex["ub"], job1.cplex["lb"], job1.cplex["ctype"],
-                job1.cplex["colnames"], job1.cplex["rhs"], job1.cplex["rownames"],
-                job1.cplex["sense"], job1.cplex["rows"], job1.cplex["cols"], job1.cplex["vals"],
-                job1.x_names, job1.UB, args.sp)
+    BB = B_and_B(job.cplex["obj"], job.cplex["ub"], job.cplex["lb"], job.cplex["ctype"],
+                job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
+                job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
+                job.x_names, job.UB, args.sp)
     choices, solution_data = BB.solve_algorithem(args.init_resource_by_labels, disable_prints=False)
     end = time.time()
     solution_data = "solution in %10f sec\n" % (end - start) + str(solution_data)
     if choices and solution_data:
-        draw_solution(job1.operations.items(), choices, solution_data)
+        draw_solution(job.operations.items(), choices, solution_data)
 
 
 if __name__ == '__main__':
