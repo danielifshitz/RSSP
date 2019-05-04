@@ -121,6 +121,16 @@ def check_problem_number(problem_number):
 def arguments_parser():
     usage = 'usage...'
     parser = argparse.ArgumentParser(description=usage, prog='rssp.py')
+    subparsers = parser.add_subparsers(dest='sort_x',
+        help='sort xi,m,r,l')
+    preferences_parser = subparsers.add_parser('pre',
+        help='sort Xi,m,r,l by operation preferences')
+    preferences_parser.add_argument('-r', '--reverse', action='store_true',
+        help='use reverse sort of the preferences')
+    resources_parser = subparsers.add_parser('res',
+        help='sort Xi,m,r,l by resources')
+    resources_parser.add_argument('-r', '--reverse', action='store_true',
+        help='use reverse sort of the resources')
     parser.add_argument('-p', '--problem_number', type=check_problem_number, required=True,
         help='the wanted problem number to be solved')
     parser.add_argument('-c', '--cplex_auto_solution', action='store_true',
@@ -129,21 +139,13 @@ def arguments_parser():
         help='try initialze every resources lables one by one')
     parser.add_argument('--sp', action='store_true',
         help='divide the problem to SP\'s')
-    parser.add_argument('-s', '--sort_x_by', choices=['pre', 'res'],
-        help='sort the Xi,m,r,l according to the chooses sort')
-    parser.add_argument('-r', '--resource_sort_type', choices=['bigger', 'lower'],
-        help='sort the Xi,m,r,l by resources according to the chooses sort {bigger/lower}')
-    args = parser.parse_args()
-    if args.sort_x_by == "res" and not args.resource_sort_type:
-        msg = "when chooses sort x by resources, must be chooses the sort type {bigger/lower}"
-        raise parser.error(msg)
-    return args
+    return parser.parse_args()
 
 
 def main():
     print("pid =", getpid())
     args = arguments_parser()
-    job = Job(args.problem_number, args.cplex_auto_solution, args.sort_x_by, args.resource_sort_type == "lower")
+    job = Job(args.problem_number, args.cplex_auto_solution, args.sort_x, args.sort_x and args.reverse)
     print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB)
     print("starting solve")
     start = time.time()

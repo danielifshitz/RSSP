@@ -6,7 +6,7 @@ from job_resource import Resource
 
 class Job:
 
-    def __init__(self, csv_path, cplex_solution=False, sort_x=None, res_sort_type=False):
+    def __init__(self, csv_path, cplex_solution=False, sort_x=None, reverse=False):
         self.N = 1e4
         self.resources = {}
         self.operations = {}
@@ -18,10 +18,10 @@ class Job:
         self.sql_problem(csv_path)
         self.__find_rtag_and_tim()
         if sort_x == "pre":
-            self.operations = self.__sort_x_by_preferences()
+            self.operations = self.__sort_x_by_preferences(reverse)
             self.create_x_i_m_r_l()
         elif sort_x == "res":
-            self.__sort_x_by_resources(res_sort_type)
+            self.__sort_x_by_resources(reverse)
         else:
             self.create_x_i_m_r_l()
         self.__init_cplex_variable_parameters(cplex_solution)
@@ -85,7 +85,7 @@ class Job:
                 mode.find_tim()
 
 
-    def __sort_x_by_preferences(self):
+    def __sort_x_by_preferences(self, reverse):
         """
         create operation dictionary that sort by the length of the preferences that each operation have.
         the length of the preferences is defined as the max number of following operation that need to be done
@@ -93,7 +93,7 @@ class Job:
         return: dictionary of operaions
         """
         # create a list that contains all operations number and sorted by there preferences length
-        op_order = sorted(self.operations, key=lambda op: self.__sort_x_by_pref(self.preferences[op]))
+        op_order = sorted(self.operations, key=lambda op: self.__sort_x_by_pref(self.preferences[op]), reverse=reverse)
         operations = {}
         # create dictionary of [operation number: operation object]
         for op in op_order:
