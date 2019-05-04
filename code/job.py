@@ -53,6 +53,7 @@ class Job:
         for row in query:
             operation = str(row[OPERATION])
             resource = str(row[RESOURCE])
+            mode = str(row[MODE])
             # if the resource first seen, create it
             if resource not in self.resources:
                 self.resources[resource] = Resource(resource)
@@ -61,15 +62,17 @@ class Job:
                 self.operations[operation] = Operation(operation)
                 self.preferences[operation] = []
             # add mode to operation with all relevent data
-            self.operations[operation].add_mode(str(row[MODE]), self.resources[resource], row[START], row[DURATION])
+            self.operations[operation].add_mode(mode, self.resources[resource], row[START], row[DURATION])
 
         c.execute("SELECT Suc_Oper_ID, Pre_Oper_ID FROM Priority where Problem_ID = {0} ORDER BY Suc_Oper_ID, Pre_Oper_ID".format(problem_ID))
         query = c.fetchall()
         # from every line take operation and preferences
         for row in query:
             if row[PRE_OP]:
+                operation = str(row[OPERATION])
+                pre_op = str(row[PRE_OP])
                 # add preference operation (Operation object) to the preferences dictionary
-                self.preferences[operation].append(self.operations[str(row[PRE_OP])])
+                self.preferences[operation].append(self.operations[pre_op])
 
         conn.close()
 

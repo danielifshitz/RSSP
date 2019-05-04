@@ -139,12 +139,15 @@ def arguments_parser():
         help='try initialze every resources lables one by one')
     parser.add_argument('--sp', action='store_true',
         help='divide the problem to SP\'s')
+    parser.add_argument('-g', "--graph_solution", action='store_false',
+        help='disable the show of the solution with graphs')
     return parser.parse_args()
 
 
 def main():
     print("pid =", getpid())
     args = arguments_parser()
+    f = open("demofile.txt", "w")
     job = Job(args.problem_number, args.cplex_auto_solution, args.sort_x, args.sort_x and args.reverse)
     print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB)
     print("starting solve")
@@ -153,11 +156,13 @@ def main():
                 job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
                 job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
                 job.x_names, job.UB, args.sp)
-    choices, solution_data = BB.solve_algorithem(args.init_resource_by_labels, disable_prints=False)
+    choices, nodes, queue_size = BB.solve_algorithem(args.init_resource_by_labels, disable_prints=False)
     end = time.time()
-    solution_data = "solution in %10f sec\n" % (end - start) + str(solution_data)
-    if choices and solution_data:
+    solution_data = "solution in {:.10f} sec\ncreated nodes = {}, max queue size = {}".format(end - start, nodes, queue_size)
+    if args.graph_solution and choices and solution_data:
         draw_solution(job.operations.items(), choices, solution_data)
+    f.write("{:.2f}, {}, {}\n".format(end - start, nodes, queue_size))
+    f.close()
 
 
 if __name__ == '__main__':

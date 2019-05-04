@@ -180,11 +180,9 @@ class B_and_B():
                 initialize_x_function(next_node)
             # check if we can do bound on the tree and take next node from the queue
             next_node = self.__try_bound()
-        solution_data = "created nodes = {}, max depth = {}, max queue size = {}".format(self.tree.num_of_nodes,
-            self.tree.max_depth, self.tree.max_queue_size)
         try:
             print("number of best solutions =", self.number_of_best_solutions)
-            return self.best_equation.cplex_solution(disable_prints), solution_data
+            return self.best_equation.cplex_solution(disable_prints), self.tree.num_of_nodes, self.tree.max_queue_size
         except:
             print("cann't find integer solution")
             return None, None
