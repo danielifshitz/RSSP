@@ -20,9 +20,9 @@ class Tree:
         # create new node and increase the number of created nodes by one
         node = Node(equation, depth)
         self.num_of_nodes += 1
-        if self.num_of_nodes >= self.next_ten_thousand * 10000:
-            print("num_of_nodes =", self.num_of_nodes)
-            self.next_ten_thousand += 1
+        # if self.num_of_nodes >= self.next_ten_thousand * 1000:
+        #     print("num_of_nodes =", self.num_of_nodes)
+        #     self.next_ten_thousand += 1
         # add new node to the queue only if node solution's isn't integer solution
         if not node.is_leaf():
             heapq.heappush(self.queue, node)

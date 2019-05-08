@@ -102,20 +102,40 @@ def drow_rectangle(start_y, end_y, value, width=2, text=""):
     plt.text(value["start"] + 0.1, start_y + 0.03, text, fontsize=8)
 
 
+def solve_problem(args):
+    job = Job(args.problem_number, args.cplex_auto_solution, args.sort_x, args.sort_x and args.reverse)
+    print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB)
+    print("starting solve")
+    start = time.time()
+    BB = B_and_B(job.cplex["obj"], job.cplex["ub"], job.cplex["lb"], job.cplex["ctype"],
+                job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
+                job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
+                job.x_names, job.UB, args.sp)
+    choices, nodes, queue_size = BB.solve_algorithem(args.init_resource_by_labels, disable_prints=False)
+    end = time.time()
+    solution_data = "solution in {:.10f} sec\ncreated nodes = {}, max queue size = {}".format(end - start, nodes, queue_size)
+    if args.graph_solution and choices and solution_data:
+        draw_solution(job.operations.items(), choices, solution_data)
+    return "{:.2f}, {}, {}".format(end - start, nodes, queue_size)
+
+
+
 def check_problem_number(problem_number):
     """
     check if the wanted problem exist and if not raise argparse exception.
     return: number, the problem number if its exist
     """
-    conn = connect('data.db')
-    c = conn.cursor()
-    c.execute("SELECT * FROM OpMoRe where Problem_ID = {0}".format(problem_number))
-    query = c.fetchall()
-    conn.close()
-    if not query:
-        msg = "Problem number %r not exist" % problem_number
-        raise argparse.ArgumentTypeError(msg)
-    return problem_number
+    problems = problem_number.split("-")
+    for problem in problems:
+        conn = connect('data.db')
+        c = conn.cursor()
+        c.execute("SELECT * FROM OpMoRe where Problem_ID = {0}".format(problem))
+        query = c.fetchall()
+        conn.close()
+        if not query:
+            msg = "Problem number %r not exist" % problem
+            raise argparse.ArgumentTypeError(msg)
+    return problems
 
 
 def arguments_parser():
@@ -141,27 +161,39 @@ def arguments_parser():
         help='divide the problem to SP\'s')
     parser.add_argument('-g', "--graph_solution", action='store_false',
         help='disable the show of the solution with graphs')
+    parser.add_argument('-a', "--all_flags", action='store_true',
+        help='disable the show of the solution with graphs')
     return parser.parse_args()
 
 
 def main():
     print("pid =", getpid())
     args = arguments_parser()
-    f = open("demofile.txt", "w")
-    job = Job(args.problem_number, args.cplex_auto_solution, args.sort_x, args.sort_x and args.reverse)
-    print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB)
-    print("starting solve")
-    start = time.time()
-    BB = B_and_B(job.cplex["obj"], job.cplex["ub"], job.cplex["lb"], job.cplex["ctype"],
-                job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
-                job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
-                job.x_names, job.UB, args.sp)
-    choices, nodes, queue_size = BB.solve_algorithem(args.init_resource_by_labels, disable_prints=False)
-    end = time.time()
-    solution_data = "solution in {:.10f} sec\ncreated nodes = {}, max queue size = {}".format(end - start, nodes, queue_size)
-    if args.graph_solution and choices and solution_data:
-        draw_solution(job.operations.items(), choices, solution_data)
-    f.write("{:.2f}, {}, {}\n".format(end - start, nodes, queue_size))
+    f = open("solutions.txt", "w")
+    args.problem_number += ["{}".format(int(args.problem_number[0]))]
+    start = int(args.problem_number[0])
+    end = int(args.problem_number[1]) + 1
+    for problem in range(start, end):
+        args.problem_number = problem
+        if args.all_flags:
+            layouts = [{"init_resource_by_labels" : False, "sp" : False},
+                       {"init_resource_by_labels" : True, "sp" : False},
+                       {"init_resource_by_labels" : False, "sp" : True},
+                       {"init_resource_by_labels" : True, "sp" : True}]
+            sort_bys = [{"sort_x" : None, "reverse" : False},
+                       {"sort_x" : "pre", "reverse" : False},
+                       {"sort_x" : "res", "reverse" : False},
+                       {"sort_x" : "res", "reverse" : True}]
+            for layout in layouts:
+                for sort_by in sort_bys:
+                    args.init_resource_by_labels = layout["init_resource_by_labels"]
+                    args.sp = layout["sp"]
+                    args.sort_x = sort_by["sort_x"]
+                    args.reverse = sort_by["reverse"]
+                    f.write(solve_problem(args) + ",")
+            f.write("\n")
+        else:
+            f.write(solve_problem(args) + "\n")
     f.close()
 
 
