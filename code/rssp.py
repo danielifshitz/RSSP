@@ -162,18 +162,19 @@ def arguments_parser():
     parser.add_argument('-g', "--graph_solution", action='store_false',
         help='disable the show of the solution with graphs')
     parser.add_argument('-a', "--all_flags", action='store_true',
-        help='disable the show of the solution with graphs')
+        help='for each every selected problem run all 16 options')
     return parser.parse_args()
 
 
 def main():
     print("pid =", getpid())
     args = arguments_parser()
-    f = open("solutions.txt", "w")
+    f = open("solutions.txt", "a")
     args.problem_number += ["{}".format(int(args.problem_number[0]))]
     start = int(args.problem_number[0])
     end = int(args.problem_number[1]) + 1
     for problem in range(start, end):
+        f.write("{}, ".format(problem))
         args.problem_number = problem
         if args.all_flags:
             layouts = [{"init_resource_by_labels" : False, "sp" : False},
