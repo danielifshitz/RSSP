@@ -25,7 +25,8 @@ class Job:
         else:
             self.create_x_i_m_r_l()
         self.__init_cplex_variable_parameters(cplex_solution)
-        self.__find_UB()
+        # self.__find_UB()
+        self.UB = self.__find_UB_greedy()
         self.__create_equations()
 
 
@@ -88,7 +89,7 @@ class Job:
                 mode.find_tim()
 
 
-    def __sort_x_by_preferences(self, reverse):
+    def __sort_x_by_preferences(self, reverse=False):
         """
         create operation dictionary that sort by the length of the preferences that each operation have.
         the length of the preferences is defined as the max number of following operation that need to be done
@@ -136,6 +137,36 @@ class Job:
                 if mode.tim > max_t_im:
                     max_t_im = mode.tim
             self.UB += max_t_im
+
+    def __find_UB_greedy(self):  
+        op_end_times = {}
+        resorce_time = {}
+        for resorce in self.resources.keys():
+            resorce_time[resorce] = 0
+        ub = 0
+        for name, operation in self.__sort_x_by_preferences().items():
+            pre_dur = []
+            for pre in self.preferences[name]:
+                pre_dur.append(op_end_times[pre.number])
+            min_time_mode = float("inf")
+            op_resorce_time = resorce_time.copy()
+            for mode in operation.modes:
+                max_dur = pre_dur[:]
+                mode_resorce_time = resorce_time.copy()
+                for resource in mode.resources:
+                    max_dur.append(mode_resorce_time[resource.number])
+                start = max(max_dur)
+                for resource in mode.resources:
+                    op_mode = "{},{}".format(name, mode.mode_number)
+                    usage = resource.usage[op_mode]
+                    mode_resorce_time[resource.number] += usage["start_time"] + usage["duration"]
+                if min_time_mode > start + mode.tim:
+                    op_resorce_time = mode_resorce_time
+                    min_time_mode = start + mode.tim
+            ub = max(ub, min_time_mode)
+            resorce_time = op_resorce_time
+            op_end_times[name] = min_time_mode
+        return ub
 
 
     def create_x_i_m_r_l(self):
