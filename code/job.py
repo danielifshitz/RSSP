@@ -25,7 +25,6 @@ class Job:
         else:
             self.create_x_i_m_r_l()
         self.__init_cplex_variable_parameters(cplex_solution)
-        # self.__find_UB()
         self.UB = self.__find_UB_greedy()
         self.__create_equations()
 
@@ -126,19 +125,7 @@ class Job:
                     self.cplex["colnames"].append("X{},{},{}".format(op_mode, resource.number, index))
 
 
-    def __find_UB(self):
-        """
-        find the UB to the problem by sum all the max(Tim) of every operation
-        return: None
-        """
-        for operation in self.operations.values():
-            max_t_im = 0
-            for mode in operation.modes:
-                if mode.tim > max_t_im:
-                    max_t_im = mode.tim
-            self.UB += max_t_im
-
-    def __find_UB_greedy(self):  
+    def __find_UB_greedy(self):
         op_end_times = {}
         resorce_time = {}
         for resorce in self.resources.keys():
@@ -153,11 +140,12 @@ class Job:
             for mode in operation.modes:
                 max_dur = pre_dur[:]
                 mode_resorce_time = resorce_time.copy()
+                op_mode = "{},{}".format(name, mode.mode_number)
                 for resource in mode.resources:
-                    max_dur.append(mode_resorce_time[resource.number])
+                    usage = resource.usage[op_mode]
+                    max_dur.append(mode_resorce_time[resource.number] - usage["start_time"])
                 start = max(max_dur)
                 for resource in mode.resources:
-                    op_mode = "{},{}".format(name, mode.mode_number)
                     usage = resource.usage[op_mode]
                     mode_resorce_time[resource.number] += usage["start_time"] + usage["duration"]
                 if min_time_mode > start + mode.tim:

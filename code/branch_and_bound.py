@@ -9,13 +9,13 @@ class B_and_B():
     def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, UB=float("inf"), use_SP=True):
         self.UB_lock = Lock()
         self.best_equation = None
-        self.number_of_best_solutions = 0
         Equations.init_global_data(obj, ub, lb, ctype, colnames, rownames, sense, len(x_names))
         self.tree = Tree()
         self.UB = UB
         self.use_SP = use_SP
         if use_SP:
             self.__create_SPs(1, rhs, rows, cols, vals, x_names)
+            print("|SPs| =", len(self.tree.queue))
             # print([round(node.get_solution(),3) for node in self.tree.queue])
         else:
             equation = Equations(cols, rows, vals, rhs, x_names, {}, {})
@@ -53,12 +53,9 @@ class B_and_B():
         self.UB_lock.acquire()
         solution = equation.solution
         print("found UB that is eqauls to %10f" % solution)
-        if solution and solution < self.UB:
+        if solution and solution <= self.UB:
             self.UB = solution
             self.best_equation = equation
-            self.number_of_best_solutions = 1
-        elif solution and solution == self.UB:
-            self.number_of_best_solutions += 1
         self.UB_lock.release()
 
 
@@ -73,6 +70,8 @@ class B_and_B():
         while next_node: # while the queue not empty
             # if the node worth then the UB, take another node
             if next_node.get_solution() > self.UB:
+                next_node = self.tree.get_queue_head() # take another node from the queue
+            elif next_node.get_solution() == self.UB and self.best_equation:
                 next_node = self.tree.get_queue_head() # take another node from the queue
             else:
                 return next_node
@@ -181,8 +180,7 @@ class B_and_B():
             # check if we can do bound on the tree and take next node from the queue
             next_node = self.__try_bound()
         try:
-            print("number of best solutions =", self.number_of_best_solutions)
             return self.best_equation.cplex_solution(disable_prints), self.tree.num_of_nodes, self.tree.max_queue_size
         except:
             print("cann't find integer solution")
-            return None, None
+            return None, None, None

@@ -32,7 +32,7 @@ class Tree:
         # print("node solution =", node.get_solution())
         # print("num of nodes =", self.num_of_nodes)
         # print("queue size =", len(self.queue))
-        # print("queue = ", [{item.get_solution() : item.depth} for item in self.queue])
+        # print("queue = ", [item.get_solution() for item in self.queue])
 
 
     def get_queue_head(self):

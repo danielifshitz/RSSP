@@ -115,7 +115,7 @@ class Equations:
             self.integer_solution = True
             return None
         x = prob.solution.get_values()
-        self.solution = prob.solution.get_objective_value()
+        self.solution = round(prob.solution.get_objective_value(),10)
         self.integer_solution = True
         for j in range(self.num_of_x):
             if not round(x[j],10).is_integer():
