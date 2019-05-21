@@ -111,12 +111,12 @@ def solve_problem(args):
                 job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
                 job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
                 job.x_names, job.UB, args.sp)
-    choices, nodes, queue_size = BB.solve_algorithem(args.init_resource_by_labels, disable_prints=False)
+    choices, nodes, queue_size, SPs_value, solution, MIP_infeasible = BB.solve_algorithem(args.init_resource_by_labels, disable_prints=False)
     end = time.time()
     solution_data = "solution in {:.10f} sec\ncreated nodes = {}, max queue size = {}".format(end - start, nodes, queue_size)
     if args.graph_solution and choices and solution_data:
         draw_solution(job.operations.items(), choices, solution_data)
-    return "{:.2f}, {}, {}".format(end - start, nodes, queue_size)
+    return "{:.2f}, {}, {}, {}".format(end - start, nodes, queue_size, MIP_infeasible), SPs_value, job.UB, solution
 
 
 
@@ -176,6 +176,9 @@ def main():
     for problem in range(start, end):
         f.write("{}, ".format(problem))
         args.problem_number = problem
+        SPs_value = 0
+        predicted_UB = 0
+        solution = 0
         if args.all_flags:
             layouts = [{"init_resource_by_labels" : False, "sp" : False},
                        {"init_resource_by_labels" : True, "sp" : False},
@@ -191,8 +194,9 @@ def main():
                     args.sp = layout["sp"]
                     args.sort_x = sort_by["sort_x"]
                     args.reverse = sort_by["reverse"]
-                    f.write(solve_problem(args) + ",")
-            f.write("\n")
+                    solution, SPs_value, predicted_UB, solution_value = solve_problem(args)
+                    f.write(solution + ",")
+            f.write("{},{},{}\n".format(SPs_value, predicted_UB, solution_value))
         else:
             f.write(solve_problem(args) + "\n")
     f.close()

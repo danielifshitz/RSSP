@@ -10,6 +10,7 @@ class Equations:
     rownames = []
     sense = ""
     num_of_x = 0
+    MIP_infeasible = False
 
     def __init__(self, cols, rows, vals, rhs, cols_to_remove, all_choices={}, new_choices={}):
         """
@@ -112,6 +113,7 @@ class Equations:
             # Not mixed-integer problems solution
             # print("Solution status = ", status, ":", end=' ')
             # print(prob.solution.status[prob.solution.get_status()])
+            Equations.MIP_infeasible = Equations.MIP_infeasible or status == 103
             self.integer_solution = True
             return None
         x = prob.solution.get_values()

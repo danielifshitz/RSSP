@@ -29,6 +29,16 @@ class Job:
         self.__create_equations()
 
 
+    def next_operations(self, choices):
+        next_ops = []
+        for op_name, preferences in self.preferences.items():
+            if op_name not in choices:
+                if not [preference.number for preference in preferences if preference.number not in choices]:
+                    next_ops.append(op_name)
+
+        return next_ops
+
+
     def sql_problem(self, problem_ID):
         """
         read problrm data from the DB using sql querys and initialize all class parameters.
@@ -147,7 +157,7 @@ class Job:
                 start = max(max_dur)
                 for resource in mode.resources:
                     usage = resource.usage[op_mode]
-                    mode_resorce_time[resource.number] += usage["start_time"] + usage["duration"]
+                    mode_resorce_time[resource.number] = start + usage["start_time"] + usage["duration"]
                 if min_time_mode > start + mode.tim:
                     op_resorce_time = mode_resorce_time
                     min_time_mode = start + mode.tim

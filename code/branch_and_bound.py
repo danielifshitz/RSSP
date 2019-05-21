@@ -13,9 +13,11 @@ class B_and_B():
         self.tree = Tree()
         self.UB = UB
         self.use_SP = use_SP
+        self.SP_len = 0
         if use_SP:
             self.__create_SPs(1, rhs, rows, cols, vals, x_names)
-            print("|SPs| =", len(self.tree.queue))
+            self.SP_len = len(self.tree.queue)
+            # print("|SPs| =", len(self.tree.queue))
             # print([round(node.get_solution(),3) for node in self.tree.queue])
         else:
             equation = Equations(cols, rows, vals, rhs, x_names, {}, {})
@@ -180,7 +182,8 @@ class B_and_B():
             # check if we can do bound on the tree and take next node from the queue
             next_node = self.__try_bound()
         try:
-            return self.best_equation.cplex_solution(disable_prints), self.tree.num_of_nodes, self.tree.max_queue_size
+            return self.best_equation.cplex_solution(disable_prints), self.tree.num_of_nodes, self.tree.max_queue_size, \
+                   self.SP_len, self.best_equation.solution, Equations.MIP_infeasible
         except:
             print("cann't find integer solution")
-            return None, None, None
+            return None, 0, 0, 0, True
