@@ -58,6 +58,7 @@ class Equations:
         Equations.rownames = rownames
         Equations.sense = sense
         Equations.num_of_x = num_of_x
+        Equations.MIP_infeasible = False
 
 
     def __populatebynonzero(self, prob, disable_prints=True):

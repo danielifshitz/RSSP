@@ -1,5 +1,6 @@
 from sqlite3 import connect
 from cplex import infinity
+import time
 import constraint_equations
 from job_operation import Operation
 from job_resource import Resource
@@ -18,25 +19,47 @@ class Job:
         self.sql_problem(csv_path)
         self.__find_rtag_and_tim()
         if sort_x == "pre":
-            self.operations = self.__sort_x_by_preferences(reverse)
+            self.operations = self.__sort_operations_by_preferences(reverse)
             self.create_x_i_m_r_l()
         elif sort_x == "res":
             self.__sort_x_by_resources(reverse)
         else:
             self.create_x_i_m_r_l()
         self.__init_cplex_variable_parameters(cplex_solution)
-        self.UB = self.__find_UB_greedy()
+        self.greedy_mode = self.__find_UB_greedy(self.__sort_operations_by_pref)
+        self.greedy_operations = self.__find_UB_greedy_operations()
+        self.greedy_preferences = self.__find_UB_greedy(self.__sort_operations_by_pref_len)
+        self.UB = min(self.greedy_mode, self.greedy_operations, self.greedy_preferences)
         self.__create_equations()
 
 
     def next_operations(self, choices):
+        """
+        according the given chose operations, collect all available operation by preferences.
+        choices: string[], name of operations that already made/selected
+        return: string[], all the available operation
+        """
         next_ops = []
         for op_name, preferences in self.preferences.items():
+            # dont take operations that already be selected
             if op_name not in choices:
+                # for each operation check if all its preference operations in choices list, if so, save the operation
                 if not [preference.number for preference in preferences if preference.number not in choices]:
                     next_ops.append(op_name)
 
         return next_ops
+
+
+    def sort_resources(self):
+        operations = {operation: self.__sort_operations_by_pref(self.preferences[operation]) for operation in self.operations}
+        max_dependence = max(operations.values()) + 1
+        res = {resource: [0] * max_dependence for resource in self.resources.keys()}
+        for op_name, dependence in operations.items():
+            operation = self.operations[op_name]
+            for resource in operation.all_resources.keys():
+                cell = res[resource.number]
+                cell[dependence] += 1
+        return res, max_dependence
 
 
     def sql_problem(self, problem_ID):
@@ -98,15 +121,20 @@ class Job:
                 mode.find_tim()
 
 
-    def __sort_x_by_preferences(self, reverse=False):
+    def __sort_operations_by_preferences(self, sort_function, reverse=False):
         """
         create operation dictionary that sort by the length of the preferences that each operation have.
         the length of the preferences is defined as the max number of following operation that need to be done
             to arrive to this operation.
+        sort_function: function, __sort_operations_by_pref or __sort_operations_by_pref_len
+        reverse: boolean, used only with __sort_operations_by_pref
         return: dictionary of operaions
         """
         # create a list that contains all operations number and sorted by there preferences length
-        op_order = sorted(self.operations, key=lambda op: self.__sort_x_by_pref(self.preferences[op]), reverse=reverse)
+        if sort_function == self.__sort_operations_by_pref_len:
+            op_order = sorted(self.operations, key=lambda op: sort_function(op), reverse=True)
+        else:
+            op_order = sorted(self.operations, key=lambda op: sort_function(self.preferences[op]), reverse=reverse)
         operations = {}
         # create dictionary of [operation number: operation object]
         for op in op_order:
@@ -114,20 +142,43 @@ class Job:
         return operations
 
 
-    def __sort_x_by_pref(self, op_list):
+    def __sort_operations_by_pref_len(self, op):
+        """
+        a recursive funcion that calculate the max number of operation that came after given operation
+        op: string, operation name
+        return: the max len of the operation that need this opearion
+        """
+        preferences_len = [0]
+        # check every operation
+        for operation, preferences in self.preferences.items():
+            # if operation have the given operation in it's preferences
+            if self.operations[op] in preferences:
+                # check the len of the operation and add 1 to the len
+                preferences_len.append(self.__sort_operations_by_pref_len(operation) + 1)
+
+        return max(preferences_len)
+
+
+    def __sort_operations_by_pref(self, op_list):
         """
         a recursive funcion that calculate the max number of operation that need to be pass to arrive
             to operation with out preferences operations.
-        op_list: list of preferences operations that need to be checked
+        op_list: operation[], list of preferences operations that need to be checked
         return: number, the langth from operation with out preferences operations
         """
         if not op_list:
             return 0
 
-        return max([self.__sort_x_by_pref(self.preferences[op.number]) for op in op_list]) + 1
+        return max([self.__sort_operations_by_pref(self.preferences[op.number]) for op in op_list]) + 1
 
 
     def __sort_x_by_resources(self, reverse=False):
+        """
+        create and sort the Xi,m,r,l according to the usage resources for the cplex equations.
+        reverse: boolean, True - sort from the most usage resources,
+            False - sort from the lass usage resources
+        retrun None
+        """
         res_order = sorted(self.resources.values(), key=lambda resource: resource.size, reverse=reverse)
         for resource in res_order:
             for op_mode in resource.usage.keys():
@@ -135,35 +186,82 @@ class Job:
                     self.cplex["colnames"].append("X{},{},{}".format(op_mode, resource.number, index))
 
 
-    def __find_UB_greedy(self):
+    def calc_adding_mode(self, pre_dur, mode_resorces_time, mode):
+        """
+        calculate the resources end time according to the selected operations before.
+        pre_dur: numbers[], each cell contains preference operations end time.
+        mode_resorces_time: dictionary, end time of each resource.
+        mode: Mode, the mode that want to calculate.
+        return: number - the end time of the mode, dictionary - the end time of every resource
+        """
+        op_mode = "{},{}".format(mode.op_number, mode.mode_number)
+        # add the end time of each resource to the list of end time of the preferences
+        for resource in mode.resources:
+            usage = resource.usage[op_mode]
+            # if resource start time in the mode != 0, it's meean that the reaource need only after that time
+            pre_dur.append(mode_resorces_time[resource.number] - usage["start_time"])
+
+        # take the biggest end time to start the mode
+        mode_start_time = max(pre_dur)
+        # for each resource in mode, add it start time + duration to the mode start time
+        for resource in mode.resources:
+            usage = resource.usage[op_mode]
+            mode_resorces_time[resource.number] = mode_start_time + usage["start_time"] + usage["duration"]
+
+        return mode_start_time + mode.tim, mode_resorces_time
+
+
+    def __find_UB_greedy(self, sort_function):
         op_end_times = {}
-        resorce_time = {}
+        resorces_time = {}
         for resorce in self.resources.keys():
-            resorce_time[resorce] = 0
+            resorces_time[resorce] = 0
         ub = 0
-        for name, operation in self.__sort_x_by_preferences().items():
+        for name, operation in self.__sort_operations_by_preferences(sort_function).items():
             pre_dur = []
             for pre in self.preferences[name]:
                 pre_dur.append(op_end_times[pre.number])
             min_time_mode = float("inf")
-            op_resorce_time = resorce_time.copy()
+            op_resorces_time = resorces_time.copy()
             for mode in operation.modes:
-                max_dur = pre_dur[:]
-                mode_resorce_time = resorce_time.copy()
-                op_mode = "{},{}".format(name, mode.mode_number)
-                for resource in mode.resources:
-                    usage = resource.usage[op_mode]
-                    max_dur.append(mode_resorce_time[resource.number] - usage["start_time"])
-                start = max(max_dur)
-                for resource in mode.resources:
-                    usage = resource.usage[op_mode]
-                    mode_resorce_time[resource.number] = start + usage["start_time"] + usage["duration"]
-                if min_time_mode > start + mode.tim:
-                    op_resorce_time = mode_resorce_time
-                    min_time_mode = start + mode.tim
+                mode_time, mode_resorces_time = self.calc_adding_mode(pre_dur[:], resorces_time.copy(), mode)
+                if min_time_mode > mode_time:
+                    op_resorces_time = mode_resorces_time
+                    min_time_mode = mode_time
             ub = max(ub, min_time_mode)
-            resorce_time = op_resorce_time
+            resorces_time = op_resorces_time
             op_end_times[name] = min_time_mode
+        return ub
+
+
+    def __find_UB_greedy_operations(self):
+        op_end_times = {}
+        resorces_time = {}
+        for resorce in self.resources.keys():
+            resorces_time[resorce] = 0
+        ub = 0
+        choices = []
+        operations = self.next_operations(choices)
+        while operations:
+            choisen_operation = None
+            operations = {op: self.operations[op] for op in operations}
+            for name, operation in operations.items():
+                pre_dur = []
+                for pre in self.preferences[name]:
+                    pre_dur.append(op_end_times[pre.number])
+                min_time_mode = float("inf")
+                op_resorces_time = resorces_time.copy()
+                for mode in operation.modes:
+                    mode_time, mode_resorces_time = self.calc_adding_mode(pre_dur[:], resorces_time.copy(), mode)
+                    if min_time_mode > mode_time:
+                        op_resorces_time = mode_resorces_time
+                        min_time_mode = mode_time
+                        choisen_operation = mode.op_number
+            choices.append(choisen_operation)
+            ub = max(ub, min_time_mode)
+            resorces_time = op_resorces_time
+            op_end_times[name] = min_time_mode
+            operations = self.next_operations(choices)
         return ub
 
 
