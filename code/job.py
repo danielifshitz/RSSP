@@ -172,20 +172,6 @@ class Job:
         return max([self.__sort_operations_by_pref(self.preferences[op.number]) for op in op_list]) + 1
 
 
-    def __sort_x_by_resources(self, reverse=False):
-        """
-        create and sort the Xi,m,r,l according to the usage resources for the cplex equations.
-        reverse: boolean, True - sort from the most usage resources,
-            False - sort from the lass usage resources
-        retrun None
-        """
-        res_order = sorted(self.resources.values(), key=lambda resource: resource.size, reverse=reverse)
-        for resource in res_order:
-            for op_mode in resource.usage.keys():
-                for index in range(1, resource.size + 1):
-                    self.cplex["colnames"].append("X{},{},{}".format(op_mode, resource.number, index))
-
-
     def calc_adding_mode(self, pre_dur, mode_resorces_time, mode):
         """
         calculate the resources end time according to the selected operations before.
@@ -199,38 +185,47 @@ class Job:
         for resource in mode.resources:
             usage = resource.usage[op_mode]
             # if resource start time in the mode != 0, it's meean that the reaource need only after that time
-            pre_dur.append(mode_resorces_time[resource.number] - usage["start_time"])
+            pre_dur.append(mode_resorces_time[resource.number]["end"] - usage["start_time"])
 
         # take the biggest end time to start the mode
         mode_start_time = max(pre_dur)
         # for each resource in mode, add it start time + duration to the mode start time
         for resource in mode.resources:
             usage = resource.usage[op_mode]
-            mode_resorces_time[resource.number] = mode_start_time + usage["start_time"] + usage["duration"]
+            mode_resorces_time[resource.number] = {"start": mode_start_time, "end": mode_start_time + usage["start_time"] + usage["duration"]}
 
         return mode_start_time + mode.tim, mode_resorces_time
+
+
+    def calc_adding_operations(self, operations, op_end_times, resorces_time):
+        for name, operation in operations.items():
+            pre_dur = []
+            for pre in self.preferences[name]:
+                pre_dur.append(op_end_times[pre.number])
+            min_time_mode = float("inf")
+
+            for mode in operation.modes:
+                mode_time, mode_resorces_time = self.calc_adding_mode(pre_dur[:], resorces_time.copy(), mode)
+                if min_time_mode > mode_time:
+                    best_resorces_time = mode_resorces_time
+                    min_time_mode = mode_time
+                    choisen_operation = mode.op_number
+
+        return best_resorces_time, min_time_mode, choisen_operation
 
 
     def __find_UB_greedy(self, sort_function):
         op_end_times = {}
         resorces_time = {}
         for resorce in self.resources.keys():
-            resorces_time[resorce] = 0
+            resorces_time[resorce] = {"start": 0, "end": 0}
+
         ub = 0
         for name, operation in self.__sort_operations_by_preferences(sort_function).items():
-            pre_dur = []
-            for pre in self.preferences[name]:
-                pre_dur.append(op_end_times[pre.number])
-            min_time_mode = float("inf")
-            op_resorces_time = resorces_time.copy()
-            for mode in operation.modes:
-                mode_time, mode_resorces_time = self.calc_adding_mode(pre_dur[:], resorces_time.copy(), mode)
-                if min_time_mode > mode_time:
-                    op_resorces_time = mode_resorces_time
-                    min_time_mode = mode_time
+            resorces_time, min_time_mode, choisen_operation = self.calc_adding_operations({name: operation}, op_end_times, resorces_time.copy())
             ub = max(ub, min_time_mode)
-            resorces_time = op_resorces_time
-            op_end_times[name] = min_time_mode
+            op_end_times[choisen_operation] = min_time_mode
+
         return ub
 
 
@@ -238,31 +233,32 @@ class Job:
         op_end_times = {}
         resorces_time = {}
         for resorce in self.resources.keys():
-            resorces_time[resorce] = 0
+            resorces_time[resorce] = {"start": 0, "end": 0}
+
         ub = 0
-        choices = []
-        operations = self.next_operations(choices)
+        operations = self.next_operations([])
         while operations:
-            choisen_operation = None
             operations = {op: self.operations[op] for op in operations}
-            for name, operation in operations.items():
-                pre_dur = []
-                for pre in self.preferences[name]:
-                    pre_dur.append(op_end_times[pre.number])
-                min_time_mode = float("inf")
-                op_resorces_time = resorces_time.copy()
-                for mode in operation.modes:
-                    mode_time, mode_resorces_time = self.calc_adding_mode(pre_dur[:], resorces_time.copy(), mode)
-                    if min_time_mode > mode_time:
-                        op_resorces_time = mode_resorces_time
-                        min_time_mode = mode_time
-                        choisen_operation = mode.op_number
-            choices.append(choisen_operation)
+            resorces_time, min_time_mode, choisen_operation = self.calc_adding_operations(operations, op_end_times, resorces_time.copy())
             ub = max(ub, min_time_mode)
-            resorces_time = op_resorces_time
-            op_end_times[name] = min_time_mode
-            operations = self.next_operations(choices)
+            op_end_times[choisen_operation] = min_time_mode
+            operations = self.next_operations(op_end_times.keys())
+
         return ub
+
+
+    def __sort_x_by_resources(self, reverse=False):
+        """
+        create and sort the Xi,m,r,l according to the usage resources for the cplex equations.
+        reverse: boolean, True - sort from the most usage resources,
+            False - sort from the lass usage resources
+        retrun None
+        """
+        res_order = sorted(self.resources.values(), key=lambda resource: resource.size, reverse=reverse)
+        for resource in res_order:
+            for op_mode in resource.usage.keys():
+                for index in range(1, resource.size + 1):
+                    self.cplex["colnames"].append("X{},{},{}".format(op_mode, resource.number, index))
 
 
     def create_x_i_m_r_l(self):
