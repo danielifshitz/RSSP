@@ -18,8 +18,7 @@ def draw_solution(job_operations, choices, title):
     # for each operation collect which mode were selected, Tim and resources
     for operation_name, op in job_operations:
         mode_found = False
-        operations[operation_name] = {}
-        operations[operation_name]["resources"] = {}
+        operations[operation_name] = {"resources": {}}
         resources = None
         for name, val in choices.items():
             # if Xi,m,r,l set to 1 check him
@@ -117,7 +116,7 @@ def solve_problem(args):
     if args.graph_solution and choices and solution_data:
         draw_solution(job.operations.items(), choices, solution_data)
     solution = "{:.2f}, {}, {}, {}".format(end - start, nodes, queue_size, MIP_infeasible)
-    UBs = "{}, {}, {}".format(job.greedy_mode, job.greedy_operations, job.greedy_preferences)
+    UBs = "{}, {}, {}, {}".format(job.greedy_mode, job.greedy_operations, job.greedy_preferences, job.greedy_preferences_mode)
     return solution, SPs_value, UBs, solution_value
 
 
@@ -126,16 +125,19 @@ def check_problem_number(problem_number):
     check if the wanted problem exist and if not raise argparse exception.
     return: number, the problem number if its exist
     """
-    problems = problem_number.split("-")
-    for problem in problems:
-        conn = connect('data.db')
-        c = conn.cursor()
-        c.execute("SELECT * FROM OpMoRe where Problem_ID = {0}".format(problem))
+    problem_number = problem_number.replace(" ", "")
+    problems = problem_number.split(",")
+    conn = connect('data.db')
+    c = conn.cursor()
+    for index, problem in enumerate(problems):
+        problem = problem.split("-")
+        problems[index] = problem
+        c.execute("SELECT * FROM OpMoRe where Problem_ID = {0}".format(problem[-1]))
         query = c.fetchall()
-        conn.close()
         if not query:
             msg = "Problem number %r not exist" % problem
             raise argparse.ArgumentTypeError(msg)
+    conn.close()
     return problems
 
 
@@ -153,7 +155,7 @@ def arguments_parser():
     resources_parser.add_argument('-r', '--reverse', action='store_true',
         help='use reverse sort of the resources')
     parser.add_argument('-p', '--problem_number', type=check_problem_number, required=True,
-        help='the wanted problem number to be solved')
+        help='the wanted problems number to be solved. for range of problems use "-". to solve multi ranges seperate them by ",". exsample: "1-10, 15, 16, 18-21"')
     parser.add_argument('-c', '--cplex_auto_solution', action='store_true',
         help='use cplex librarys for full MILP solution')
     parser.add_argument('-l', '--init_resource_by_labels', action='store_true',
@@ -171,37 +173,39 @@ def main():
     print("pid =", getpid())
     args = arguments_parser()
     f = open("solutions.txt", "a")
-    args.problem_number += ["{}".format(int(args.problem_number[0]))]
-    start = int(args.problem_number[0])
-    end = int(args.problem_number[1]) + 1
-    for problem in range(start, end):
-        print(problem)
-        f.write("{}, ".format(problem))
-        args.problem_number = problem
-        SPs_value = 0
-        predicted_UB = 0
-        solution = 0
-        if args.all_flags:
-            layouts = [{"init_resource_by_labels" : False, "sp" : False},
-                       {"init_resource_by_labels" : True, "sp" : False},
-                       {"init_resource_by_labels" : False, "sp" : True},
-                       {"init_resource_by_labels" : True, "sp" : True}]
-            sort_bys = [{"sort_x" : None, "reverse" : False},
-                       {"sort_x" : "pre", "reverse" : False},
-                       {"sort_x" : "res", "reverse" : False},
-                       {"sort_x" : "res", "reverse" : True}]
-            for layout in layouts:
-                for sort_by in sort_bys:
-                    args.init_resource_by_labels = layout["init_resource_by_labels"]
-                    args.sp = layout["sp"]
-                    args.sort_x = sort_by["sort_x"]
-                    args.reverse = sort_by["reverse"]
-                    solution, SPs_value, predicted_UB, solution_value = solve_problem(args)
-                    f.write(solution + ", ")
-            f.write("{},{},{}\n".format(SPs_value, predicted_UB, solution_value))
-        else:
-            solution, SPs_value, predicted_UB, solution_value = solve_problem(args)
-            f.write("{}, {}\n".format(predicted_UB, solution_value))
+    problems_list = args.problem_number[:]
+    for problems in problems_list:
+        problems += ["{}".format(int(problems[0]))]
+        start = int(problems[0])
+        end = int(problems[1]) + 1
+        for problem in range(start, end):
+            print(problem)
+            f.write("{}, ".format(problem))
+            args.problem_number = problem
+            SPs_value = 0
+            predicted_UB = 0
+            solution = 0
+            if args.all_flags:
+                layouts = [{"init_resource_by_labels" : False, "sp" : False},
+                        {"init_resource_by_labels" : True, "sp" : False},
+                        {"init_resource_by_labels" : False, "sp" : True},
+                        {"init_resource_by_labels" : True, "sp" : True}]
+                sort_bys = [{"sort_x" : None, "reverse" : False},
+                        {"sort_x" : "pre", "reverse" : False},
+                        {"sort_x" : "res", "reverse" : False},
+                        {"sort_x" : "res", "reverse" : True}]
+                for layout in layouts:
+                    for sort_by in sort_bys:
+                        args.init_resource_by_labels = layout["init_resource_by_labels"]
+                        args.sp = layout["sp"]
+                        args.sort_x = sort_by["sort_x"]
+                        args.reverse = sort_by["reverse"]
+                        solution, SPs_value, predicted_UB, solution_value = solve_problem(args)
+                        f.write(solution + ", ")
+                f.write("{},{},{}\n".format(SPs_value, predicted_UB, solution_value))
+            else:
+                solution, SPs_value, predicted_UB, solution_value = solve_problem(args)
+                f.write("{}, {}\n".format(predicted_UB, solution_value))
     f.close()
 
 

@@ -1,6 +1,7 @@
 from sqlite3 import connect
 from cplex import infinity
 import time
+import copy
 import constraint_equations
 from job_operation import Operation
 from job_resource import Resource
@@ -19,7 +20,7 @@ class Job:
         self.sql_problem(csv_path)
         self.__find_rtag_and_tim()
         if sort_x == "pre":
-            self.operations = self.__sort_operations_by_preferences(reverse)
+            self.operations = self.__sort_operations_by_preferences(self.__sort_operations_by_pref, reverse)
             self.create_x_i_m_r_l()
         elif sort_x == "res":
             self.__sort_x_by_resources(reverse)
@@ -28,8 +29,9 @@ class Job:
         self.__init_cplex_variable_parameters(cplex_solution)
         self.greedy_mode = self.__find_UB_greedy(self.__sort_operations_by_pref)
         self.greedy_operations = self.__find_UB_greedy_operations()
-        self.greedy_preferences = self.__find_UB_greedy(self.__sort_operations_by_pref_len)
-        self.UB = min(self.greedy_mode, self.greedy_operations, self.greedy_preferences)
+        self.greedy_preferences = self.__find_UB_greedy(self.__sort_operations_by_pref_len, reverse=True)
+        self.greedy_preferences_mode = self.__find_UB_greedy_operations(less_modes=True)
+        self.UB = min(self.greedy_mode, self.greedy_operations, self.greedy_preferences, self.greedy_preferences_mode)
         self.__create_equations()
 
 
@@ -131,10 +133,7 @@ class Job:
         return: dictionary of operaions
         """
         # create a list that contains all operations number and sorted by there preferences length
-        if sort_function == self.__sort_operations_by_pref_len:
-            op_order = sorted(self.operations, key=lambda op: sort_function(op), reverse=True)
-        else:
-            op_order = sorted(self.operations, key=lambda op: sort_function(self.preferences[op]), reverse=reverse)
+        op_order = sorted(self.operations, key=lambda op: sort_function(op), reverse=reverse)
         operations = {}
         # create dictionary of [operation number: operation object]
         for op in op_order:
@@ -159,7 +158,11 @@ class Job:
         return max(preferences_len)
 
 
-    def __sort_operations_by_pref(self, op_list):
+    def __sort_operations_by_pref(self, op):
+        return self.__sort_operations_by_pref_recursive(self.preferences[op])
+
+
+    def __sort_operations_by_pref_recursive(self, op_list):
         """
         a recursive funcion that calculate the max number of operation that need to be pass to arrive
             to operation with out preferences operations.
@@ -169,7 +172,78 @@ class Job:
         if not op_list:
             return 0
 
-        return max([self.__sort_operations_by_pref(self.preferences[op.number]) for op in op_list]) + 1
+        return max([self.__sort_operations_by_pref_recursive(self.preferences[op.number]) for op in op_list]) + 1
+
+
+    def get_min_start_time(self, mode_resorces_time, mode, index, op_mode):
+        start_time = float("inf")
+        resource_numbers = []
+        for resource in mode.resources:
+            if index[int(resource.number) -1] < len(mode_resorces_time[resource.number]) - 1:
+                if mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] < start_time:
+                    usage = resource.usage[op_mode]
+                    start_time = mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] - usage["start_time"]
+                    resource_numbers = [resource.number]
+                elif mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] == start_time:
+                    resource_numbers.append(resource.number)
+
+        for resource_number in resource_numbers:
+            index[int(resource_number) -1] += 1
+
+        return start_time
+
+
+    def add_mode_no_spaces(self, start_time, mode_resorces_time, mode, op_mode):
+        index = [0] * len(mode_resorces_time)
+        # skip all not relevent options - by preferences
+        for resource in mode.resources:
+            while mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] <= start_time:
+                index[int(resource.number) -1] += 1
+
+        while True:
+            found = True
+            for resource in mode.resources:
+                if index[int(resource.number) -1] < len(mode_resorces_time[resource.number]) - 1:
+                    resource_usage = resource.usage[op_mode]
+                    current_usage = mode_resorces_time[resource.number][index[int(resource.number) -1]]
+                    next_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] + 1]
+                    if len(mode_resorces_time[resource.number]) > 2 and start_time < current_usage["start"]:
+                        search_index = 2
+                        pre_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] - 1]
+                        while pre_usage["start"] > start_time and index[int(resource.number) -1] - search_index >= 0:
+                            pre_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] - search_index]
+                            search_index += 1
+
+                        found = start_time + resource_usage["start_time"] + resource_usage["duration"] <= pre_usage["end"]
+
+                    if found and start_time + resource_usage["start_time"] < current_usage["end"]:
+                        found = start_time + resource_usage["start_time"] + resource_usage["duration"] <= current_usage["start"]
+
+                    if found:
+                        search_index = 2
+                        while next_usage["end"] < start_time + resource_usage["start_time"]:
+                            next_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] + search_index]
+                            search_index += 1
+
+                        found = next_usage["start"] >= start_time + resource_usage["start_time"] + resource_usage["duration"]
+
+                    if not found:
+                        break
+
+            if found:
+                return start_time
+
+            start_time = max(0, self.get_min_start_time(mode_resorces_time, mode, index, op_mode))
+
+
+    def add_mode(self, start_time, mode_resorces_time, mode, op_mode):
+        for resource in mode.resources:
+            usage = resource.usage[op_mode]
+            # if resource start time in the mode != 0, it's meean that the reaource need only after that time
+            if len(mode_resorces_time[resource.number]) != 1:
+                start_time = max(start_time, mode_resorces_time[resource.number][-2]["end"] - usage["start_time"])
+
+        return start_time
 
 
     def calc_adding_mode(self, pre_dur, mode_resorces_time, mode):
@@ -182,30 +256,27 @@ class Job:
         """
         op_mode = "{},{}".format(mode.op_number, mode.mode_number)
         # add the end time of each resource to the list of end time of the preferences
-        for resource in mode.resources:
-            usage = resource.usage[op_mode]
-            # if resource start time in the mode != 0, it's meean that the reaource need only after that time
-            pre_dur.append(mode_resorces_time[resource.number]["end"] - usage["start_time"])
-
+        pre_dur.append(self.add_mode_no_spaces(max(pre_dur), mode_resorces_time, mode, op_mode))
         # take the biggest end time to start the mode
         mode_start_time = max(pre_dur)
         # for each resource in mode, add it start time + duration to the mode start time
         for resource in mode.resources:
             usage = resource.usage[op_mode]
-            mode_resorces_time[resource.number] = {"start": mode_start_time, "end": mode_start_time + usage["start_time"] + usage["duration"]}
+            mode_resorces_time[resource.number].append({"start": mode_start_time + usage["start_time"], "end": mode_start_time + usage["duration"] + usage["start_time"]})
+            mode_resorces_time[resource.number] = sorted(mode_resorces_time[resource.number], key=lambda usage: usage["start"])
 
         return mode_start_time + mode.tim, mode_resorces_time
 
 
     def calc_adding_operations(self, operations, op_end_times, resorces_time):
+        min_time_mode = float("inf")
         for name, operation in operations.items():
-            pre_dur = []
+            pre_dur = [0]
             for pre in self.preferences[name]:
                 pre_dur.append(op_end_times[pre.number])
-            min_time_mode = float("inf")
 
             for mode in operation.modes:
-                mode_time, mode_resorces_time = self.calc_adding_mode(pre_dur[:], resorces_time.copy(), mode)
+                mode_time, mode_resorces_time = self.calc_adding_mode(pre_dur[:], copy.deepcopy(resorces_time), mode)
                 if min_time_mode > mode_time:
                     best_resorces_time = mode_resorces_time
                     min_time_mode = mode_time
@@ -214,14 +285,14 @@ class Job:
         return best_resorces_time, min_time_mode, choisen_operation
 
 
-    def __find_UB_greedy(self, sort_function):
+    def __find_UB_greedy(self, sort_function, reverse=False):
         op_end_times = {}
         resorces_time = {}
         for resorce in self.resources.keys():
-            resorces_time[resorce] = {"start": 0, "end": 0}
+            resorces_time[resorce] = [{"start": float("inf"), "end": float("inf")}]
 
         ub = 0
-        for name, operation in self.__sort_operations_by_preferences(sort_function).items():
+        for name, operation in self.__sort_operations_by_preferences(sort_function, reverse=reverse).items():
             resorces_time, min_time_mode, choisen_operation = self.calc_adding_operations({name: operation}, op_end_times, resorces_time.copy())
             ub = max(ub, min_time_mode)
             op_end_times[choisen_operation] = min_time_mode
@@ -229,16 +300,19 @@ class Job:
         return ub
 
 
-    def __find_UB_greedy_operations(self):
+    def __find_UB_greedy_operations(self, less_modes=False):
         op_end_times = {}
         resorces_time = {}
         for resorce in self.resources.keys():
-            resorces_time[resorce] = {"start": 0, "end": 0}
+            resorces_time[resorce] = [{"start": float("inf"), "end": float("inf")}]
 
         ub = 0
         operations = self.next_operations([])
         while operations:
             operations = {op: self.operations[op] for op in operations}
+            if less_modes:
+                operations = min(operations.values(), key=lambda operation: len(operation.modes))
+                operations = {operations.number: operations}
             resorces_time, min_time_mode, choisen_operation = self.calc_adding_operations(operations, op_end_times, resorces_time.copy())
             ub = max(ub, min_time_mode)
             op_end_times[choisen_operation] = min_time_mode
