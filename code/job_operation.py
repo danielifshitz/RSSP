@@ -35,3 +35,7 @@ class Operation:
             self.all_resources[resource] = [mode_number]
         else:
             self.all_resources[resource].append(mode_number)
+
+
+    def get_min_tim(self):
+      return  min(self.modes, key=lambda mode: mode.tim).tim

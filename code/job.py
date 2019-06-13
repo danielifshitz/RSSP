@@ -5,6 +5,7 @@ import copy
 import constraint_equations
 from job_operation import Operation
 from job_resource import Resource
+from graph import Graph
 
 class Job:
 
@@ -27,11 +28,15 @@ class Job:
         else:
             self.create_x_i_m_r_l()
         self.__init_cplex_variable_parameters(cplex_solution)
+        graph = self.create_bellman_ford_graph()
+        self.LB = graph.bellman_ford_LB(0, len(self.operations) + 1)
         self.greedy_mode = self.__find_UB_greedy(self.__sort_operations_by_pref)
         self.greedy_operations = self.__find_UB_greedy_operations()
         self.greedy_preferences = self.__find_UB_greedy(self.__sort_operations_by_pref_len, reverse=True)
         self.greedy_preferences_mode = self.__find_UB_greedy_operations(less_modes=True)
         self.UB = min(self.greedy_mode, self.greedy_operations, self.greedy_preferences, self.greedy_preferences_mode)
+        if self.UB == self.LB:
+            print("sulotion =", self.LB)
         self.__create_equations()
 
 
@@ -319,6 +324,18 @@ class Job:
             operations = self.next_operations(op_end_times.keys())
 
         return ub
+
+
+    def create_bellman_ford_graph(self):
+        graph = Graph(len(self.operations) + 2)
+        for op, pre_ops_list in self.preferences.items():
+            for pre_op in pre_ops_list:
+                graph.addEdge(int(pre_op.number), int(op), pre_op.get_min_tim())
+
+            graph.addEdge(0, int(op), 0)
+            graph.addEdge(int(op), len(self.operations) + 1, self.operations[op].get_min_tim())
+
+        return graph
 
 
     def __sort_x_by_resources(self, reverse=False):
