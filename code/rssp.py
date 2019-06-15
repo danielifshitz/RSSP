@@ -106,18 +106,24 @@ def solve_problem(args):
     print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB)
     print("starting solve")
     start = time.time()
-    BB = B_and_B(job.cplex["obj"], job.cplex["ub"], job.cplex["lb"], job.cplex["ctype"],
-                job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
-                job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
-                job.x_names, job.UB, args.sp)
+    # BB = B_and_B(job.cplex["obj"], job.cplex["ub"], job.cplex["lb"], job.cplex["ctype"],
+    #             job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
+    #             job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
+    #             job.x_names, job.UB, args.sp)
+    if job.UB == job.LB:
+        print("UB = LB\nsulotion =", job.LB)
     choices, nodes, queue_size, SPs_value, solution_value, MIP_infeasible = BB.solve_algorithem(args.init_resource_by_labels, disable_prints=False)
     end = time.time()
     solution_data = "solution in {:.10f} sec\ncreated nodes = {}, max queue size = {}".format(end - start, nodes, queue_size)
     if args.graph_solution and choices and solution_data:
         draw_solution(job.operations.items(), choices, solution_data)
     solution = "{:.2f}, {}, {}, {}".format(end - start, nodes, queue_size, MIP_infeasible)
-    UBs = "{}, {}, {}, {}".format(job.greedy_mode, job.greedy_operations, job.greedy_preferences, job.greedy_preferences_mode)
-    return solution, SPs_value, UBs, solution_value
+    bounds = "{}, {}".format(job.LB, job.UB)
+    greedy = "{}, {}, {}, {}".format(job.greedy_mode, job.greedy_operations, job.greedy_preferences, job.greedy_preferences_mode)
+    ga = "{}, {}, {}, {}, {}, {}, {}, {}".format(job.ga_ub_1, job.ga_generation_1, job.ga_ub_2, job.ga_generation_2,
+                                                 job.ga_ub_3, job.ga_generation_3, job.ga_ub_4, job.ga_generation_4)
+    bounds_and_ga_data = "{}, {}, {}".format(bounds, greedy, ga)
+    return solution, SPs_value, bounds_and_ga_data, solution_value
 
 
 def check_problem_number(problem_number):
@@ -183,7 +189,7 @@ def main():
             f.write("{}, ".format(problem))
             args.problem_number = problem
             SPs_value = 0
-            predicted_UB = 0
+            bounds_and_ga_data = ""
             solution = 0
             if args.all_flags:
                 layouts = [{"init_resource_by_labels" : False, "sp" : False},
@@ -200,12 +206,12 @@ def main():
                         args.sp = layout["sp"]
                         args.sort_x = sort_by["sort_x"]
                         args.reverse = sort_by["reverse"]
-                        solution, SPs_value, predicted_UB, solution_value = solve_problem(args)
+                        solution, SPs_value, bounds_and_ga_data, solution_value = solve_problem(args)
                         f.write(solution + ", ")
-                f.write("{},{},{}\n".format(SPs_value, predicted_UB, solution_value))
+                f.write("{},{},{}\n".format(SPs_value, bounds_and_ga_data, solution_value))
             else:
-                solution, SPs_value, predicted_UB, solution_value = solve_problem(args)
-                f.write("{}, {}\n".format(predicted_UB, solution_value))
+                solution, SPs_value, bounds_and_ga_data, solution_value = solve_problem(args)
+                f.write("{}, {}\n".format(bounds_and_ga_data, solution_value))
     f.close()
 
 

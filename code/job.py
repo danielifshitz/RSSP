@@ -6,6 +6,7 @@ import constraint_equations
 from job_operation import Operation
 from job_resource import Resource
 from graph import Graph
+from genetic_algo import GA
 
 class Job:
 
@@ -28,16 +29,19 @@ class Job:
         else:
             self.create_x_i_m_r_l()
         self.__init_cplex_variable_parameters(cplex_solution)
+        self.__create_equations()
         graph = self.create_bellman_ford_graph()
         self.LB = graph.bellman_ford_LB(0, len(self.operations) + 1)
         self.greedy_mode = self.__find_UB_greedy(self.__sort_operations_by_pref)
         self.greedy_operations = self.__find_UB_greedy_operations()
         self.greedy_preferences = self.__find_UB_greedy(self.__sort_operations_by_pref_len, reverse=True)
         self.greedy_preferences_mode = self.__find_UB_greedy_operations(less_modes=True)
+        ga = GA()
+        self.ga_ub_1, self.ga_generation_1 = ga.solve(self)
+        self.ga_ub_2, self.ga_generation_2 = ga.solve(self)
+        self.ga_ub_3, self.ga_generation_3 = ga.solve(self)
+        self.ga_ub_4, self.ga_generation_4 = ga.solve(self)
         self.UB = min(self.greedy_mode, self.greedy_operations, self.greedy_preferences, self.greedy_preferences_mode)
-        if self.UB == self.LB:
-            print("sulotion =", self.LB)
-        self.__create_equations()
 
 
     def next_operations(self, choices):
@@ -198,7 +202,7 @@ class Job:
         return start_time
 
 
-    def add_mode_no_spaces(self, start_time, mode_resorces_time, mode, op_mode):
+    def add_mode_cross_resources(self, start_time, mode_resorces_time, mode, op_mode):
         index = [0] * len(mode_resorces_time)
         # skip all not relevent options - by preferences
         for resource in mode.resources:
@@ -261,7 +265,7 @@ class Job:
         """
         op_mode = "{},{}".format(mode.op_number, mode.mode_number)
         # add the end time of each resource to the list of end time of the preferences
-        pre_dur.append(self.add_mode_no_spaces(max(pre_dur), mode_resorces_time, mode, op_mode))
+        pre_dur.append(self.add_mode_cross_resources(max(pre_dur), mode_resorces_time, mode, op_mode))
         # take the biggest end time to start the mode
         mode_start_time = max(pre_dur)
         # for each resource in mode, add it start time + duration to the mode start time
@@ -273,14 +277,23 @@ class Job:
         return mode_start_time + mode.tim, mode_resorces_time
 
 
-    def calc_adding_operations(self, operations, op_end_times, resorces_time):
+    def calc_adding_operations(self, operations, op_end_times, resorces_time, selected_mode=None):
         min_time_mode = float("inf")
         for name, operation in operations.items():
             pre_dur = [0]
             for pre in self.preferences[name]:
                 pre_dur.append(op_end_times[pre.number])
 
-            for mode in operation.modes:
+            if selected_mode:
+                for mode in operation.modes:
+                    if mode.mode_number == selected_mode:
+                        modes = [mode]
+                        break
+
+            else:
+                modes = operation.modes
+
+            for mode in modes:
                 mode_time, mode_resorces_time = self.calc_adding_mode(pre_dur[:], copy.deepcopy(resorces_time), mode)
                 if min_time_mode > mode_time:
                     best_resorces_time = mode_resorces_time
@@ -322,6 +335,22 @@ class Job:
             ub = max(ub, min_time_mode)
             op_end_times[choisen_operation] = min_time_mode
             operations = self.next_operations(op_end_times.keys())
+
+        return ub
+
+
+    def find_UB_ga(self, operations_order, selected_modes):
+        op_end_times = {}
+        resorces_time = {}
+        for resorce in self.resources.keys():
+            resorces_time[resorce] = [{"start": float("inf"), "end": float("inf")}]
+
+        ub = 0
+        for op_name in operations_order:
+            operation = self.operations[op_name]
+            resorces_time, min_time_mode, choisen_operation = self.calc_adding_operations({op_name: operation}, op_end_times, resorces_time.copy(), str(selected_modes[int(op_name) - 1]))
+            ub = max(ub, min_time_mode)
+            op_end_times[choisen_operation] = min_time_mode
 
         return ub
 

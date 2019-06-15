@@ -186,4 +186,4 @@ class B_and_B():
                    self.SP_len, self.best_equation.solution, Equations.MIP_infeasible
         except:
             print("cann't find integer solution")
-            return None, 0, 0, 0, True
+            return None, 0, 0, 0, 0, True
