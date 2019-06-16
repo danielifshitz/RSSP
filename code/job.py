@@ -10,7 +10,7 @@ from genetic_algo import GA
 
 class Job:
 
-    def __init__(self, csv_path, cplex_solution=False, sort_x=None, reverse=False):
+    def __init__(self, csv_path, cplex_solution=False, ub=None, sort_x=None, reverse=False):
         self.N = 1e4
         self.resources = {}
         self.operations = {}
@@ -32,16 +32,21 @@ class Job:
         self.__create_equations()
         graph = self.create_bellman_ford_graph()
         self.LB = graph.bellman_ford_LB(0, len(self.operations) + 1)
-        self.greedy_mode = self.__find_UB_greedy(self.__sort_operations_by_pref)
-        self.greedy_operations = self.__find_UB_greedy_operations()
-        self.greedy_preferences = self.__find_UB_greedy(self.__sort_operations_by_pref_len, reverse=True)
-        self.greedy_preferences_mode = self.__find_UB_greedy_operations(less_modes=True)
-        ga = GA()
-        self.ga_ub_1, self.ga_generation_1 = ga.solve(self)
-        self.ga_ub_2, self.ga_generation_2 = ga.solve(self)
-        self.ga_ub_3, self.ga_generation_3 = ga.solve(self)
-        self.ga_ub_4, self.ga_generation_4 = ga.solve(self)
-        self.UB = min(self.greedy_mode, self.greedy_operations, self.greedy_preferences, self.greedy_preferences_mode)
+        self.UBs = {}
+        if ub == "greedy" or ub == "both":
+            self.UBs["mode"] = self.__find_UB_greedy(self.__sort_operations_by_pref)
+            self.UBs["operations"] = self.__find_UB_greedy_operations()
+            self.UBs["preferences"] = self.__find_UB_greedy(self.__sort_operations_by_pref_len, reverse=True)
+            self.UBs["preferences_mode"] = self.__find_UB_greedy_operations(less_modes=True)
+        if ub == "ga" or ub == "both":
+            ga = GA()
+            self.UBs["ga_1"] = ga.solve(self)
+            self.UBs["ga_2"] = ga.solve(self)
+            self.UBs["ga_3"] = ga.solve(self)
+            self.UBs["ga_4"] = ga.solve(self)
+        self.UB = float("inf")
+        for solution in self.UBs.values():
+            self.UB = min(self.UB, solution["value"])
 
 
     def next_operations(self, choices):
@@ -304,6 +309,7 @@ class Job:
 
 
     def __find_UB_greedy(self, sort_function, reverse=False):
+        start = time.time()
         op_end_times = {}
         resorces_time = {}
         for resorce in self.resources.keys():
@@ -315,10 +321,12 @@ class Job:
             ub = max(ub, min_time_mode)
             op_end_times[choisen_operation] = min_time_mode
 
-        return ub
+        run_time = time.time() - start
+        return {"value": ub, "time": run_time}
 
 
     def __find_UB_greedy_operations(self, less_modes=False):
+        start = time.time()
         op_end_times = {}
         resorces_time = {}
         for resorce in self.resources.keys():
@@ -336,10 +344,12 @@ class Job:
             op_end_times[choisen_operation] = min_time_mode
             operations = self.next_operations(op_end_times.keys())
 
-        return ub
+        run_time = time.time() - start
+        return {"value": ub, "time": run_time}
 
 
     def find_UB_ga(self, operations_order, selected_modes):
+        start = time.time()
         op_end_times = {}
         resorces_time = {}
         for resorce in self.resources.keys():
@@ -352,7 +362,8 @@ class Job:
             ub = max(ub, min_time_mode)
             op_end_times[choisen_operation] = min_time_mode
 
-        return ub
+        run_time = time.time() - start
+        return {"value": ub, "time": run_time}
 
 
     def create_bellman_ford_graph(self):

@@ -102,28 +102,28 @@ def drow_rectangle(start_y, end_y, value, width=2, text=""):
 
 
 def solve_problem(args):
-    job = Job(args.problem_number, args.cplex_auto_solution, args.sort_x, args.sort_x and args.reverse)
+    job = Job(args.problem_number, args.cplex_auto_solution, args.ub, args.sort_x, args.sort_x and args.reverse)
     print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB)
     print("starting solve")
     start = time.time()
-    # BB = B_and_B(job.cplex["obj"], job.cplex["ub"], job.cplex["lb"], job.cplex["ctype"],
-    #             job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
-    #             job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
-    #             job.x_names, job.UB, args.sp)
+    BB = B_and_B(job.cplex["obj"], job.cplex["ub"], job.cplex["lb"], job.cplex["ctype"],
+                job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
+                job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
+                job.x_names, job.LB, job.UB, args.sp)
     if job.UB == job.LB:
-        print("UB = LB\nsulotion =", job.LB)
-    choices, nodes, queue_size, SPs_value, solution_value, MIP_infeasible = BB.solve_algorithem(args.init_resource_by_labels, disable_prints=False)
+        choices, nodes, queue_size, SPs_value, solution_value, MIP_infeasible = None, 0, 0, 0, job.UB, "False"
+    else:
+        choices, nodes, queue_size, SPs_value, solution_value, MIP_infeasible = BB.solve_algorithem(args.init_resource_by_labels, disable_prints=False)
     end = time.time()
     solution_data = "solution in {:.10f} sec\ncreated nodes = {}, max queue size = {}".format(end - start, nodes, queue_size)
     if args.graph_solution and choices and solution_data:
         draw_solution(job.operations.items(), choices, solution_data)
     solution = "{:.2f}, {}, {}, {}".format(end - start, nodes, queue_size, MIP_infeasible)
-    bounds = "{}, {}".format(job.LB, job.UB)
-    greedy = "{}, {}, {}, {}".format(job.greedy_mode, job.greedy_operations, job.greedy_preferences, job.greedy_preferences_mode)
-    ga = "{}, {}, {}, {}, {}, {}, {}, {}".format(job.ga_ub_1, job.ga_generation_1, job.ga_ub_2, job.ga_generation_2,
-                                                 job.ga_ub_3, job.ga_generation_3, job.ga_ub_4, job.ga_generation_4)
-    bounds_and_ga_data = "{}, {}, {}".format(bounds, greedy, ga)
-    return solution, SPs_value, bounds_and_ga_data, solution_value
+    bounds_greedy_and_ga_data = "{}, {}".format(job.LB, job.UB)
+    for name, ub_solution in job.UBs.items():
+        print(name)
+        bounds_greedy_and_ga_data += ", {}, {:.3f}".format(ub_solution["value"], ub_solution["time"])
+    return solution, SPs_value, bounds_greedy_and_ga_data, solution_value
 
 
 def check_problem_number(problem_number):
@@ -152,6 +152,8 @@ def arguments_parser():
     parser = argparse.ArgumentParser(description=usage, prog='rssp.py')
     subparsers = parser.add_subparsers(dest='sort_x',
         help='sort xi,m,r,l')
+    parser.add_argument('--ub', choices=['ga', 'greedy', 'both'],
+        help='run 4 GA or/and 4 different greedy algorithm to calculate problems UB')
     preferences_parser = subparsers.add_parser('pre',
         help='sort Xi,m,r,l by operation preferences')
     preferences_parser.add_argument('-r', '--reverse', action='store_true',
@@ -189,7 +191,7 @@ def main():
             f.write("{}, ".format(problem))
             args.problem_number = problem
             SPs_value = 0
-            bounds_and_ga_data = ""
+            bounds_greedy_and_ga_data = ""
             solution = 0
             if args.all_flags:
                 layouts = [{"init_resource_by_labels" : False, "sp" : False},
@@ -206,12 +208,12 @@ def main():
                         args.sp = layout["sp"]
                         args.sort_x = sort_by["sort_x"]
                         args.reverse = sort_by["reverse"]
-                        solution, SPs_value, bounds_and_ga_data, solution_value = solve_problem(args)
+                        solution, SPs_value, bounds_greedy_and_ga_data, solution_value = solve_problem(args)
                         f.write(solution + ", ")
-                f.write("{},{},{}\n".format(SPs_value, bounds_and_ga_data, solution_value))
+                f.write("{},{},{}\n".format(SPs_value, bounds_greedy_and_ga_data, solution_value))
             else:
-                solution, SPs_value, bounds_and_ga_data, solution_value = solve_problem(args)
-                f.write("{}, {}\n".format(bounds_and_ga_data, solution_value))
+                solution, SPs_value, bounds_greedy_and_ga_data, solution_value = solve_problem(args)
+                f.write("{}, {}, {}\n".format(solution, bounds_greedy_and_ga_data, solution_value))
     f.close()
 
 

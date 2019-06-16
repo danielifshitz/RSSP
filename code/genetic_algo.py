@@ -1,4 +1,5 @@
 import random
+import time
 
 class GA:
 
@@ -66,8 +67,9 @@ class GA:
 
 
     def solve(self, job):
+        start = time.time()
         population = self.first_population(job.operations, job.next_operations)
-        fitness = [job.find_UB_ga(genotype["operations"], genotype["modes"]) for genotype in population]
+        fitness = [job.find_UB_ga(genotype["operations"], genotype["modes"])["value"] for genotype in population]
         for generation in range(self.generations):
             # print("generations =", generation)
             probability = [1 / item for item in fitness]
@@ -81,7 +83,7 @@ class GA:
                 sons.append(self.mutation(son_2, job.operations, job.next_operations))
     
             population += sons
-            fitness += [job.find_UB_ga(genotype["operations"], genotype["modes"]) for genotype in population[self.population_size:]]
+            fitness += [job.find_UB_ga(genotype["operations"], genotype["modes"])["value"] for genotype in population[self.population_size:]]
             new_population = []
             new_fitness = []
             for item_from_fitness, item_from_population in sorted(zip(fitness, population), key=lambda pair: pair[0]):
@@ -94,4 +96,5 @@ class GA:
             if fitness[0] == fitness[-1]:
                 break
 
-        return fitness[-1], generation
+        run_time = time.time() - start
+        return {"value": fitness[-1], "generations": generation, "time": run_time}

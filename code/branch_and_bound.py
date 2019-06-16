@@ -6,12 +6,13 @@ from threading import Lock
 
 class B_and_B():
 
-    def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, UB=float("inf"), use_SP=True):
+    def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, LB=0, UB=float("inf"), use_SP=True):
         self.UB_lock = Lock()
         self.best_equation = None
         Equations.init_global_data(obj, ub, lb, ctype, colnames, rownames, sense, len(x_names))
         self.tree = Tree()
         self.UB = UB
+        self.LB = LB
         self.use_SP = use_SP
         self.SP_len = 0
         if use_SP:
@@ -69,7 +70,7 @@ class B_and_B():
         return: Node if fuond better or equals solution then UB or None if the queue is empty
         """
         next_node = self.tree.get_queue_head()
-        while next_node: # while the queue not empty
+        while next_node and self.LB < self.UB: # while the queue not empty
             # if the node worth then the UB, take another node
             if next_node.get_solution() > self.UB:
                 next_node = self.tree.get_queue_head() # take another node from the queue
