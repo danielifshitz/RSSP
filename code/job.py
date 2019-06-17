@@ -368,8 +368,8 @@ class Job:
 
     def create_bellman_ford_graph(self):
         graph = Graph(len(self.operations) + 2)
-        for op, pre_ops_list in self.preferences.items():
-            for pre_op in pre_ops_list:
+        for op in self.__sort_operations_by_preferences(self.__sort_operations_by_pref).keys():
+            for pre_op in self.preferences[op]:
                 graph.addEdge(int(pre_op.number), int(op), pre_op.get_min_tim())
 
             graph.addEdge(0, int(op), 0)
