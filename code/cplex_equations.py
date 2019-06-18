@@ -141,5 +141,6 @@ class Equations:
         for j in range(numcols):
             if self.colnames[j] not in self.choices:
                 self.choices[self.colnames[j]] = round(x[j],3)
+        nodes = prob.solution.progress.get_num_nodes_processed()
         prob.end()
-        return self.choices
+        return self.choices, nodes

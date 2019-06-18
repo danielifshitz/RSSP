@@ -113,7 +113,9 @@ def solve_problem(args):
     if job.UB == job.LB:
         choices, nodes, queue_size, SPs_value, solution_value, MIP_infeasible = None, 0, 0, 0, job.UB, "False"
     else:
-        choices, nodes, queue_size, SPs_value, solution_value, MIP_infeasible = BB.solve_algorithem(args.init_resource_by_labels, disable_prints=False)
+        choices, nodes, queue_size, SPs_value, solution_value, MIP_infeasible = BB.solve_algorithem(args.init_resource_by_labels,
+                                                                                                    disable_prints=False,
+                                                                                                    cplex_auto_solution=args.cplex_auto_solution)
     end = time.time()
     solution_data = "solution in {:.10f} sec\ncreated nodes = {}, max queue size = {}".format(end - start, nodes, queue_size)
     if args.graph_solution and choices and solution_data:
