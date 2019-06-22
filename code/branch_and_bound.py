@@ -18,7 +18,7 @@ class B_and_B():
         if use_SP:
             self.__create_SPs(1, rhs, rows, cols, vals, x_names)
             self.SP_len = len(self.tree.queue)
-            # print("|SPs| =", len(self.tree.queue))
+            print("|SPs| =", len(self.tree.queue))
             # print([round(node.get_solution(),3) for node in self.tree.queue])
         else:
             equation = Equations(cols, rows, vals, rhs, x_names, {}, {})
@@ -55,8 +55,8 @@ class B_and_B():
         """
         self.UB_lock.acquire()
         solution = equation.solution
-        print("found UB that is eqauls to %10f" % solution)
         if solution and solution <= self.UB:
+            print("found UB that is eqauls to %10f" % solution)
             self.UB = solution
             self.best_equation = equation
         self.UB_lock.release()
@@ -74,6 +74,8 @@ class B_and_B():
             # if the node worth then the UB, take another node
             if next_node.get_solution() > self.UB:
                 next_node = self.tree.get_queue_head() # take another node from the queue
+            # if the node equals to the UB and the UB isn't the predicted UB
+            # (we already have node that gave integer solution that equals to the UB)
             elif next_node.get_solution() == self.UB and self.best_equation:
                 next_node = self.tree.get_queue_head() # take another node from the queue
             else:

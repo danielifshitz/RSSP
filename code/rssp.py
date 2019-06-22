@@ -122,8 +122,7 @@ def solve_problem(args):
         draw_solution(job.operations.items(), choices, solution_data)
     solution = "{:.2f}, {}, {}, {}".format(end - start, nodes, queue_size, MIP_infeasible)
     bounds_greedy_and_ga_data = "{}, {}".format(job.LB, job.UB)
-    for name, ub_solution in job.UBs.items():
-        print(name)
+    for ub_solution in job.UBs.values():
         bounds_greedy_and_ga_data += ", {}, {:.3f}".format(ub_solution["value"], ub_solution["time"])
     return solution, SPs_value, bounds_greedy_and_ga_data, solution_value
 

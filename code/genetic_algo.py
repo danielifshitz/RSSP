@@ -71,7 +71,6 @@ class GA:
         population = self.first_population(job.operations, job.next_operations)
         fitness = [job.find_UB_ga(genotype["operations"], genotype["modes"])["value"] for genotype in population]
         for generation in range(self.generations):
-            # print("generations =", generation)
             probability = [1 / item for item in fitness]
             F = sum(probability)
             weights = [item / F for item in probability]
