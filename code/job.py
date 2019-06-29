@@ -5,7 +5,7 @@ import copy
 import constraint_equations
 from job_operation import Operation
 from job_resource import Resource
-from graph import Graph
+from bellman_ford import Bellman_Ford
 from genetic_algo import GA
 
 class Job:
@@ -367,7 +367,7 @@ class Job:
 
 
     def create_bellman_ford_graph(self):
-        graph = Graph(len(self.operations) + 2)
+        graph = Bellman_Ford(len(self.operations) + 2)
         for op in self.__sort_operations_by_preferences(self.__sort_operations_by_pref).keys():
             for pre_op in self.preferences[op]:
                 graph.addEdge(int(pre_op.number), int(op), pre_op.get_min_tim())

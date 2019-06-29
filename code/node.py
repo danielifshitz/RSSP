@@ -1,5 +1,10 @@
 class Node:
 
+    """
+    this class present node in B&B tree.
+    each node containse all the cplex equation data and the node depth.
+    """
+
     def __init__(self, equation, depth=0):
         self.equation = equation
         self.depth = depth

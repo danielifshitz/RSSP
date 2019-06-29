@@ -6,20 +6,30 @@ from threading import Lock
 
 class B_and_B():
 
+    """
+    this class run and solve RSSP problem using branch and bound algorithm.
+    to solve RSSP problem this class need to resive the RSSP problem in linear equations format.
+    this equations will be send to cplex object who know how to solve it using LP.
+    """
+
     def __init__(self, obj, ub, lb, ctype, colnames, rhs, rownames, sense, rows, cols, vals, x_names, LB=0, UB=float("inf"), use_SP=True):
+        # will be used after adding parallel run option
         self.UB_lock = Lock()
         self.best_equation = None
+        # this parameters will e same for all the equations
         Equations.init_global_data(obj, ub, lb, ctype, colnames, rownames, sense, len(x_names))
+        # tree = heap, use to save all still not opened nodes
         self.tree = Tree()
         self.UB = UB
         self.LB = LB
         self.use_SP = use_SP
         self.SP_len = 0
+        # the B&B algorithm can be solve using SP
         if use_SP:
             self.__create_SPs(1, rhs, rows, cols, vals, x_names)
             self.SP_len = len(self.tree.queue)
             print("|SPs| =", len(self.tree.queue))
-            # print([round(node.get_solution(),3) for node in self.tree.queue])
+
         else:
             equation = Equations(cols, rows, vals, rhs, x_names, {}, {})
             self.__init_equation(equation, file_name="problem.lp")
@@ -32,12 +42,15 @@ class B_and_B():
         """
         mode = 1
         sub = [s for s in x_names if "X" + str(op)+ "," +str(mode) in s]
+        # select mode for each operation
         while sub:
             needed_x_copy = needed_x[:]
             needed_x_copy += sub
             self.__create_SPs(op + 1, rhs, rows, cols, vals, x_names, needed_x_copy)
             mode += 1
             sub = [s for s in x_names if "X" + str(op)+ "," +str(mode) in s]
+
+        # if all mode selected, create the equations
         if not [s for s in x_names if "X" + str(op) in s]:
             equation = Equations(cols[:], rows[:], vals[:], rhs[:], x_names[:],{},
                 {elem : 0 for elem in x_names if elem not in needed_x})
@@ -59,6 +72,7 @@ class B_and_B():
             print("found UB that is eqauls to %10f" % solution)
             self.UB = solution
             self.best_equation = equation
+
         self.UB_lock.release()
 
 
@@ -74,12 +88,15 @@ class B_and_B():
             # if the node worth then the UB, take another node
             if next_node.get_solution() > self.UB:
                 next_node = self.tree.get_queue_head() # take another node from the queue
+
             # if the node equals to the UB and the UB isn't the predicted UB
             # (we already have node that gave integer solution that equals to the UB)
             elif next_node.get_solution() == self.UB and self.best_equation:
                 next_node = self.tree.get_queue_head() # take another node from the queue
+
             else:
                 return next_node
+
         # return None if the queue is empty and all the tree was bound
         return None
 
@@ -97,6 +114,7 @@ class B_and_B():
         # if the solution is integer, check the UB
         if solution and equation.integer_solution:
             self.__update_UB(equation)
+
         # if the solution better or equals to the UB, add it to the queue
         elif solution and solution <= self.UB:
             self.tree.add_nodes(equation, depth)
@@ -133,12 +151,15 @@ class B_and_B():
             # Xj,n,t,k = 0 | j = i, n = m, t = r and k != l
             if i == other_i and m == other_m and r == other_r and l != other_l:
                 choices[x] = 0
+
             # Xj,n,t,k = 0 | j != i, n = or != m, t = r and k = l
             elif i != other_i and r == other_r and l == other_l:
                 choices[x] = 0
+
             # Xj,n,t,k = 0 | j = i, n != m, t = or != r and k = or != l
             elif i == other_i and m != other_m:
                 choices[x] = 0
+
         self.create_node(node, choices)
 
 
@@ -152,6 +173,11 @@ class B_and_B():
 
 
     def choice_resource(self, node):
+        """
+        the B&B tree can be set by labels, for Xi,m,r,l set all l's options, from 1 to |R_l|
+        node: Node, the node with all equations
+        return: None
+        """
         i, m, r = node.equation.cols_to_remove[0][1:-2].split(",")
         zero_choices = {}
         for x in node.equation.cols_to_remove:
@@ -159,6 +185,10 @@ class B_and_B():
             if i == other_i and m == other_m and r == other_r:
                 self.set_x_to_one(node, x)
                 zero_choices[x] = 0
+
+        # if SP not selected there is option that this mode m is not selected
+        # so we will try set l to be zero
+        # in SP, we already selected the mode and its can't be zero
         if not self.use_SP:
             self.create_node(node, zero_choices)
 
@@ -174,8 +204,10 @@ class B_and_B():
         """
         if init_resource_labels:
             initialize_x_function = self.choice_resource
+
         else:
             initialize_x_function = self.zero_one_initialize
+
         next_node = self.tree.get_queue_head()
         # run while the node not None which mean that the algorithm not end
         while next_node:
@@ -184,11 +216,14 @@ class B_and_B():
                 initialize_x_function(next_node)
             # check if we can do bound on the tree and take next node from the queue
             next_node = self.__try_bound()
+
         try:
             choices, nodes = self.best_equation.cplex_solution(disable_prints)
             if not cplex_auto_solution:
                 nodes = self.tree.num_of_nodes
+
             return choices, nodes, self.tree.max_queue_size, self.SP_len, self.best_equation.solution, Equations.MIP_infeasible
+
         except:
             print("cann't find integer solution")
             return None, 0, 0, 0, 0, True

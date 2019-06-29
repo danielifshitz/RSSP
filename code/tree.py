@@ -3,6 +3,12 @@ from node import Node
 
 class Tree:
 
+    """
+    every created node in the B&B will be save by this class using heapq.
+    the main goal is to add(save) new node and remove(return) the best node.
+    we used heapq to increase the efficiency of standart sorted list.
+    """
+
     def __init__(self):
         self.queue = []
         self.max_queue_size = 0
@@ -20,9 +26,6 @@ class Tree:
         # create new node and increase the number of created nodes by one
         node = Node(equation, depth)
         self.num_of_nodes += 1
-        # if self.num_of_nodes >= self.next_ten_thousand * 1000:
-        #     print("num_of_nodes =", self.num_of_nodes)
-        #     self.next_ten_thousand += 1
         # add new node to the queue only if node solution's isn't integer solution
         if not node.is_leaf():
             heapq.heappush(self.queue, node)

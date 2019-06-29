@@ -1,4 +1,10 @@
 from mode import Mode
+
+"""
+this class present an operation that need to be done to finish a job.
+for every operation we will save its name(number), modes, ann all resource that all modes need.
+"""
+
 class Operation:
 
     def __init__(self, number):
@@ -18,24 +24,29 @@ class Operation:
         resource_dur: float - the duretion of the resource usage
         return: None
         """
-        for mode in self.modes:
-            # check if mode exists
-            if mode.mode_number == mode_number:
-                mode.add_resource(resource, start, dur)
-                if resource not in self.all_resources:
-                    self.all_resources[resource] = [mode_number]
-                else:
-                    self.all_resources[resource].append(mode_number)
-                return
-        # if it is new mode
-        mode = Mode(mode_number,self.number)
-        mode.add_resource(resource, start, dur)
-        self.modes.append(mode)
+        # save all needed resources for every mode in all_resources dictionary
         if resource not in self.all_resources:
             self.all_resources[resource] = [mode_number]
+
         else:
             self.all_resources[resource].append(mode_number)
 
+        for mode in self.modes:
+            # check if mode exists
+            if mode.mode_number == mode_number:
+                # add mode data to existing mode
+                mode.add_resource(resource, start, dur)
+                return
+
+        # if it is new mode, create it and add it to operation modes list
+        mode = Mode(mode_number,self.number)
+        mode.add_resource(resource, start, dur)
+        self.modes.append(mode)
+
 
     def get_min_tim(self):
-      return  min(self.modes, key=lambda mode: mode.tim).tim
+        """
+        return the shortest mode time of this operation
+        return: number
+        """
+        return min(self.modes, key=lambda mode: mode.tim).tim

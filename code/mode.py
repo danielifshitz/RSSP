@@ -1,5 +1,12 @@
 class Mode:
 
+    """
+    this class present a mode of an operation.
+    each mode have name(mode number), operation name(operation number),
+    all needed resources, r' which is the less used resource and tim
+    which is the total time that takes to the mode to be done.
+    """
+
     def __init__(self, mode_number, op_number):
         self.mode_number = mode_number
         self.op_number = op_number

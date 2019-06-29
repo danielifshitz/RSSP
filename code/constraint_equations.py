@@ -1,3 +1,11 @@
+
+"""
+this file is part of the job class, we seperat it because all
+this fuction used to create the linear equations.
+each function create an equation according to the 8 equations
+in the RSSP articals.
+"""
+
 def get_next_row_index(cplex_d):
     """
     create new row, add it to all rows and return its index
@@ -40,50 +48,79 @@ def add_rows_cols_vals(cplex_d, cols_list, rows_list, vals_list):
 
 
 def first_equations(operations, cplex_d):
+    """
+    create the first equation
+    operations: list of Operation
+    cplex_d: dictionary, have all cplex data
+    return: None
+    """
     for operation in operations.values():
         row_index = get_next_row_index(cplex_d)
         for mode in operation.modes:
             for index in range(1, mode.r_tag.size + 1):
+                # create the Xi,m,r,l
                 x_i_m_r_l = "X{},{},{},{}".format(operation.number, mode.mode_number, mode.r_tag.number, index)
                 add_row_col_val(cplex_d, x_i_m_r_l, row_index, 1)
+
+        # set: " = 1"
         cplex_d["sense"] += "E"
         cplex_d["rhs"].append(1)
 
 
 def second_equations(operations, cplex_d):
+    """
+    create the second equation
+    operations: list of Operation
+    cplex_d: dictionary, have all cplex data
+    return: None
+    """
     for operation in operations.values():
         for mode in operation.modes:
             r_tag_cols = []
             r_tag_rows = []
             r_tag_vals = []
             for index in range(1, mode.r_tag.size + 1):
+                # create the Xi,m,r,l
                 x_i_m_r_l = "X{},{},{},{}".format(operation.number, mode.mode_number, mode.r_tag.number, index)
                 col_index = cplex_d["colnames"].index(x_i_m_r_l)
                 r_tag_cols.append(col_index)
                 r_tag_vals.append(1)
+
             for resource in mode.resources:
                 if resource.number != mode.r_tag.number:
                     row_index = get_next_row_index(cplex_d)
                     r_tag_rows = [row_index] * len(r_tag_cols)
                     add_rows_cols_vals(cplex_d, r_tag_cols, r_tag_rows, r_tag_vals)
                     for index in range(1, resource.size + 1):
+                        # create the Xi,m,r,l
                         x_i_m_r_l = "X{},{},{},{}".format(operation.number, mode.mode_number, resource.number, index)
                         add_row_col_val(cplex_d, x_i_m_r_l, row_index, -1)
+
+                    # set: " = 0"
                     cplex_d["sense"] += "E"
                     cplex_d["rhs"].append(0)
 
 
 def third_equations(resources, cplex_d):
+    """
+    create the third equation
+    resources: list of Resource
+    cplex_d: dictionary, have all cplex data
+    return: None
+    """
     for resource in resources.values():
         pre_cols = []
         pre_rows = []
         pre_vals = []
         row_index = get_next_row_index(cplex_d)
         for op_mode in resource.usage.keys():
+            # create the Xi,m,r,l
             x_i_m_r_l = "X{},{},1".format(op_mode, resource.number)
             add_row_col_val(cplex_d, x_i_m_r_l, row_index, 1)
             pre_cols.append(cplex_d["colnames"].index(x_i_m_r_l))
             pre_vals.append(1)
+
+        # set: " < 1"
         cplex_d["sense"] += "L"
         cplex_d["rhs"].append(1)
         pre_vals = [x * -1 for x in pre_vals]
@@ -92,107 +129,167 @@ def third_equations(resources, cplex_d):
             next_vals = []
             row_index = get_next_row_index(cplex_d)
             for op_mode in resource.usage.keys():
+                # create the Xi,m,r,l
                 x_i_m_r_l = "X{},{},{}".format(op_mode, resource.number, index)
                 add_row_col_val(cplex_d, x_i_m_r_l, row_index, 1)
                 next_cols.append(cplex_d["colnames"].index(x_i_m_r_l))
                 next_vals.append(1)
+
             pre_rows = [row_index] * len(pre_cols)
             add_rows_cols_vals(cplex_d, pre_cols, pre_rows, pre_vals)
             pre_vals = [x * -1 for x in next_vals]
             pre_cols = next_cols
+            # set: " < 0"
             cplex_d["sense"] += "L"
             cplex_d["rhs"].append(0)
 
 
 def fourth_equations(operations, preferences, cplex_d):
+    """
+    create the fourth equation
+    operations: list of Operation
+    preferences: dictionary, {"operation_number": [its preferences operations]}
+    cplex_d: dictionary, have all cplex data
+    return: None
+    """
     for op_number, preferences in preferences.items():
         if preferences != None: # check if the operation have preferences
             for preference_op in preferences:
                 row_index = get_next_row_index(cplex_d)
+                # create th Ti
                 t_i = "T" + str(preference_op.number)
                 add_row_col_val(cplex_d, t_i, row_index, 1)
                 for mode in preference_op.modes:
                     for index in range(1, mode.r_tag.size + 1):
+                        # create the Xi,m,r,l
                         x_i_m_r_l = "X{},{},{},{}".format(preference_op.number, mode.mode_number, mode.r_tag.number, index)
                         add_row_col_val(cplex_d, x_i_m_r_l, row_index, mode.tim)
+
                 t_i = "T" + str(op_number)
                 add_row_col_val(cplex_d, t_i, row_index, -1)
+                # set: " < 0"
                 cplex_d["sense"] += "L"
                 cplex_d["rhs"].append(0)
 
 
 def fifth_equations(resources, cplex_d):
+    """
+    create the fifth equation
+    resources: list of Resource
+    cplex_d: dictionary, have all cplex data
+    return: None
+    """
     for resource in resources.values():
         for index in range (2, resource.size + 1):
             row_index = get_next_row_index(cplex_d)
+            # create th Tr,l
             t_r_l_prev = "T{},{}".format(resource.number,index - 1)
             add_row_col_val(cplex_d, t_r_l_prev, row_index, 1)
             for op_mode, usage in resource.usage.items():
+                # create the Xi,m,r,l
                 x_i_m_r_l = "X{},{},{}".format(op_mode, resource.number, index - 1)
                 add_row_col_val(cplex_d, x_i_m_r_l, row_index, usage["duration"])
+
+            # create th Tr,l
             t_r_l = "T{},{}".format(resource.number,index)
             add_row_col_val(cplex_d, t_r_l, row_index, - 1)
+            # set: " < 0"
             cplex_d["sense"] += "L"
             cplex_d["rhs"].append(0)
 
 
 def sixth_equations(operations, N, cplex_d):
+    """
+    create the sixth equation
+    operations: list of Operation
+    N: number
+    cplex_d: dictionary, have all cplex data
+    return: None
+    """
     for operation in operations.values():
         for resource, modes in operation.all_resources.items():
             for index in range(1, resource.size + 1):
                 cols_list = []
                 vals_list = []
                 x_i_m_r_l_list = []
+                # create th Ti
                 t_i = "T{}".format(operation.number)
                 cols_list.append(cplex_d["colnames"].index(t_i))
                 vals_list.append(1)
+                # create th Tr,l
                 t_r_l = "T{},{}".format(resource.number, index)
                 cols_list.append(cplex_d["colnames"].index(t_r_l))
                 vals_list.append(-1)
                 for mode in modes:
                     op_mode = operation.number + ',' + mode
                     t_start = resource.usage[op_mode]["start_time"]
+                    # create the Xi,m,r,l
                     x_i_m_r_l = "X{},{},{},{}".format(operation.number, mode, resource.number, index)
                     cols_list.append(cplex_d["colnames"].index(x_i_m_r_l))
                     vals_list.append(t_start)
                     x_i_m_r_l_list.append(len(cols_list) - 1)
+
                 for x_i_m_r_l in x_i_m_r_l_list:
                     vals_list[x_i_m_r_l] -= N
+
                 row_list = [get_next_row_index(cplex_d)] * len(cols_list)
                 add_rows_cols_vals(cplex_d, cols_list, row_list, vals_list)
+                # set: " > -N"
                 cplex_d["sense"] += "G"
                 cplex_d["rhs"].append(-N)
                 for x_i_m_r_l in x_i_m_r_l_list:
                     vals_list[x_i_m_r_l] += 2*N
+
                 row_list = [get_next_row_index(cplex_d)] * len(cols_list)
                 add_rows_cols_vals(cplex_d, cols_list, row_list, vals_list)
+                # set: " < N"
                 cplex_d["sense"] += "L"
                 cplex_d["rhs"].append(N)
 
 
 def seventh_equations(operations, cplex_d):
+    """
+    create the seventh equation
+    operations: list of Operation
+    cplex_d: dictionary, have all cplex data
+    return: None
+    """
     for operation in operations.values():
         row_index = get_next_row_index(cplex_d)
+        # create th Ti
         t_i = "T" + str(operation.number)
         add_row_col_val(cplex_d, t_i, row_index, 1)
         for mode in operation.modes:
             for index in range(1, mode.r_tag.size + 1):
+                # create the Xi,m,r,l
                 x_i_m_r_l = "X{},{},{},{}".format(operation.number, mode.mode_number, mode.r_tag.number, index)
                 add_row_col_val(cplex_d, x_i_m_r_l, row_index, mode.tim)
+
         add_row_col_val(cplex_d, "F", row_index, -1)
+        # set: " < 0"
         cplex_d["sense"] += "L"
         cplex_d["rhs"].append(0)
 
 
 def eighth_equations(resources, cplex_d):
+    """
+    create the eighth equation
+    resources: list of Resource
+    cplex_d: dictionary, have all cplex data
+    return: None
+    """
     for resource in resources.values():
         for index in range (1, resource.size + 1):
             row_index = get_next_row_index(cplex_d)
+            # create th Tr,l
             t_r_l = "T{},{}".format(resource.number,index)
             add_row_col_val(cplex_d, t_r_l, row_index, 1)
             for op_mode, usage in resource.usage.items():
+                # create the Xi,m,r,l
                 x_i_m_r_l = "X{},{},{}".format(op_mode, resource.number, index)
                 add_row_col_val(cplex_d, x_i_m_r_l, row_index, usage["duration"])
+
             add_row_col_val(cplex_d, "F", row_index, -1)
+            # set: " < 0"
             cplex_d["sense"] += "L"
             cplex_d["rhs"].append(0)

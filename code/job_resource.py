@@ -1,5 +1,12 @@
 class Resource:
 
+    """
+    this class present a resource that used by operations.
+    each resource have name(number), size which is how many times
+    this resource is used in all modes and for each (operation,mode) we
+    save the time that this mode need this resource.
+    """
+
     def __init__(self, number):
         self.number = number
         self.size = 0
@@ -8,7 +15,7 @@ class Resource:
 
     def add_mode(self, operation, mode, start_time, duration):
         """
-        add mode that use this resource.
+        save a mode that use this resource.
         operation : string, operatoin number
         mode: string, mode number
         start_time: float, The start time of resource use
@@ -16,7 +23,8 @@ class Resource:
         return: None
         """
         op_mode = operation + ',' + mode
-        assert op_mode not in self.usage, op_mode + " already exist"
+        # each operation in each mode can use the same resource at most one time
+        assert op_mode not in self.usage, op_mode + ": can't use the same resource twice in the same operation+mode"
         self.usage[op_mode] = {"start_time" : start_time, "duration" : duration}
         # the size of resource defined to be the number of operations that need this resource
         for registered_op_mode in self.usage.keys():
