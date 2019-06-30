@@ -1,11 +1,11 @@
 from mode import Mode
 
-"""
-this class present an operation that need to be done to finish a job.
-for every operation we will save its name(number), modes, ann all resource that all modes need.
-"""
-
 class Operation:
+
+    """
+    this class present an operation that need to be done to finish a job.
+    for every operation we will save its name(number), modes, ann all resource that all modes need.
+    """
 
     def __init__(self, number):
         self.number = number

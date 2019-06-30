@@ -67,10 +67,10 @@ def draw_collected_data(operations, title, choices_modes):
         div = len(op["resources"])
         x_ticks.append(op["start"])
         x_ticks.append(op["start"] + op["duration"])
-        drow_rectangle(start_y, start_y + 1, op)
+        draw_rectangle(start_y, start_y + 1, op)
         index = 0
         for resource_name, resource in op["resources"].items():
-            drow_rectangle(start_y + index / div, start_y + (index + 1) / div, resource, 1, "r" + resource_name)
+            draw_rectangle(start_y + index / div, start_y + (index + 1) / div, resource, 1, "r" + resource_name)
             index += 1
         start_y += 1
     plt.xticks(list(set(x_ticks)))
@@ -80,7 +80,7 @@ def draw_collected_data(operations, title, choices_modes):
     plt.show()
 
 
-def drow_rectangle(start_y, end_y, value, width=2, text=""):
+def draw_rectangle(start_y, end_y, value, width=2, text=""):
     """
     draw rectangle.
     start_y: float, from where the rectangle start

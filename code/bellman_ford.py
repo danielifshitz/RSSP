@@ -7,12 +7,12 @@ class Bellman_Ford:
     using this algorithm we will find the LB value of the problem.
     """
 
-    def __init__(self,vertices):
-        self.V = vertices #No. of vertices - num of ops+2
+    def __init__(self, vertices):
+        self.V = vertices # No. of vertices = num of ops + 2
         self.graph = [] # list to store the graph
 
 
-    def addEdge(self,u,v,w):
+    def addEdge(self, u, v, w):
         """
         add an edge to graph
         u: string, vertices name
@@ -23,7 +23,7 @@ class Bellman_Ford:
         self.graph.append([u, v, w])
 
 
-    def bellman_ford_LB(self,src,dest):
+    def bellman_ford_LB(self, src, dest):
         """
         cacolate the max distance from src vertices to dest vertices
         src: string, vertices name

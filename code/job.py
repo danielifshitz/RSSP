@@ -10,7 +10,7 @@ from genetic_algo import GA
 
 class Job:
 
-    def __init__(self, csv_path, cplex_solution=False, ub=None, sort_x=None, reverse=False):
+    def __init__(self, problem_id, cplex_solution=False, ub=None, sort_x=None, reverse=False):
         self.N = 1e4
         self.resources = {}
         self.operations = {}
@@ -19,7 +19,7 @@ class Job:
             'rownames' : [], 'sense' : "", 'rows' : [], 'cols' : [], 'vals' : []}
         self.x_names = []
         self.UB = 0
-        self.sql_problem(csv_path)
+        self.sql_problem(problem_id)
         self.__find_rtag_and_tim()
         if sort_x == "pre":
             self.operations = self.__sort_operations_by_preferences(self.__sort_operations_by_pref, reverse)
@@ -64,18 +64,6 @@ class Job:
                     next_ops.append(op_name)
 
         return next_ops
-
-
-    def sort_resources(self):
-        operations = {operation: self.__sort_operations_by_pref(self.preferences[operation]) for operation in self.operations}
-        max_dependence = max(operations.values()) + 1
-        res = {resource: [0] * max_dependence for resource in self.resources.keys()}
-        for op_name, dependence in operations.items():
-            operation = self.operations[op_name]
-            for resource in operation.all_resources.keys():
-                cell = res[resource.number]
-                cell[dependence] += 1
-        return res, max_dependence
 
 
     def sql_problem(self, problem_ID):
@@ -159,7 +147,7 @@ class Job:
         """
         a recursive funcion that calculate the max number of operation that came after given operation
         op: string, operation name
-        return: the max len of the operation that need this opearion
+        return: number, the max len of the operation that need this opearion
         """
         preferences_len = [0]
         # check every operation
@@ -173,6 +161,11 @@ class Job:
 
 
     def __sort_operations_by_pref(self, op):
+        """
+        call to __sort_operations_by_pref_recursive with all preferences operations
+        op: string, operation name
+        return: number
+        """
         return self.__sort_operations_by_pref_recursive(self.preferences[op])
 
 
@@ -190,9 +183,18 @@ class Job:
 
 
     def get_min_start_time(self, mode_resorces_time, mode, index, op_mode):
+        """
+        add all mode's resources and calcolate the finish time.
+        mode_resorces_time: dictionary, the resources usage time
+        mode: Mode, mode object
+        index: list of numbers, the number of times that each resource been used
+        op_mode: string, "operatin_mode" string
+        return: minimom start time for this mode
+        """
         start_time = float("inf")
         resource_numbers = []
         for resource in mode.resources:
+            # if number of usage less then the last usage
             if index[int(resource.number) -1] < len(mode_resorces_time[resource.number]) - 1:
                 if mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] < start_time:
                     usage = resource.usage[op_mode]
@@ -201,6 +203,7 @@ class Job:
                 elif mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] == start_time:
                     resource_numbers.append(resource.number)
 
+        # add 1 to all usage resources
         for resource_number in resource_numbers:
             index[int(resource_number) -1] += 1
 
@@ -208,6 +211,13 @@ class Job:
 
 
     def add_mode_cross_resources(self, start_time, mode_resorces_time, mode, op_mode):
+        """
+        try add mode with cross resources if neseraly.
+        start_time: minimom start time, according to the preferences
+        mode_resorces_time: dictionary, the resources usage time
+        mode: Mode, mode object
+        op_mode: string, "operatin_mode" string
+        """
         index = [0] * len(mode_resorces_time)
         # skip all not relevent options - by preferences
         for resource in mode.resources:
@@ -216,11 +226,15 @@ class Job:
 
         while True:
             found = True
+            # check all resources
             for resource in mode.resources:
+                # if the index less the the number of resource usage 
                 if index[int(resource.number) -1] < len(mode_resorces_time[resource.number]) - 1:
+                    # resource usage data, from the Resource object
                     resource_usage = resource.usage[op_mode]
                     current_usage = mode_resorces_time[resource.number][index[int(resource.number) -1]]
                     next_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] + 1]
+                    # if the usage starts before the index usage
                     if len(mode_resorces_time[resource.number]) > 2 and start_time < current_usage["start"]:
                         search_index = 2
                         pre_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] - 1]
@@ -230,6 +244,7 @@ class Job:
 
                         found = start_time + resource_usage["start_time"] + resource_usage["duration"] <= pre_usage["end"]
 
+                    # if the usage drops on the last usage
                     if found and start_time + resource_usage["start_time"] < current_usage["end"]:
                         found = start_time + resource_usage["start_time"] + resource_usage["duration"] <= current_usage["start"]
 
@@ -243,21 +258,11 @@ class Job:
 
                     if not found:
                         break
-
+            # if all resources was placed, return the start time
             if found:
                 return start_time
 
             start_time = max(0, self.get_min_start_time(mode_resorces_time, mode, index, op_mode))
-
-
-    def add_mode(self, start_time, mode_resorces_time, mode, op_mode):
-        for resource in mode.resources:
-            usage = resource.usage[op_mode]
-            # if resource start time in the mode != 0, it's meean that the reaource need only after that time
-            if len(mode_resorces_time[resource.number]) != 1:
-                start_time = max(start_time, mode_resorces_time[resource.number][-2]["end"] - usage["start_time"])
-
-        return start_time
 
 
     def calc_adding_mode(self, pre_dur, mode_resorces_time, mode):
@@ -283,9 +288,18 @@ class Job:
 
 
     def calc_adding_operations(self, operations, op_end_times, resorces_time, selected_mode=None):
+        """
+        add operation with the best mode.
+        operations: list of Operation, part of job operations
+        op_end_times: dictionary, the end time of each operation
+        resorces_time: dictionary, resources end time
+        selected_mode: number, if we want to select spesific mode
+        return: dictionary
+        """
         min_time_mode = float("inf")
         for name, operation in operations.items():
             pre_dur = [0]
+            # save all preferences operation end time
             for pre in self.preferences[name]:
                 pre_dur.append(op_end_times[pre.number])
 
@@ -298,6 +312,7 @@ class Job:
             else:
                 modes = operation.modes
 
+            # check all modes and take the best
             for mode in modes:
                 mode_time, mode_resorces_time = self.calc_adding_mode(pre_dur[:], copy.deepcopy(resorces_time), mode)
                 if min_time_mode > mode_time:
@@ -309,6 +324,12 @@ class Job:
 
 
     def __find_UB_greedy(self, sort_function, reverse=False):
+        """
+        find UB using greedy function.
+        sort_function: function, the function that return the operations order
+        reverse: boolean, send to the sort_function
+        return dictionary, found UB and how much time its took
+        """
         start = time.time()
         op_end_times = {}
         resorces_time = {}
@@ -326,6 +347,11 @@ class Job:
 
 
     def __find_UB_greedy_operations(self, less_modes=False):
+        """
+        find UB using greedy function.
+        less_modes: boolean, if true, we will sort by operation modes number
+        return dictionary, found UB and how much time its took
+        """
         start = time.time()
         op_end_times = {}
         resorces_time = {}
@@ -334,6 +360,7 @@ class Job:
 
         ub = 0
         operations = self.next_operations([])
+        # try all avialable operation according to the preferences
         while operations:
             operations = {op: self.operations[op] for op in operations}
             if less_modes:
@@ -349,6 +376,9 @@ class Job:
 
 
     def find_UB_ga(self, operations_order, selected_modes):
+        """
+        find UB using ga function.
+        """
         start = time.time()
         op_end_times = {}
         resorces_time = {}
@@ -367,6 +397,10 @@ class Job:
 
 
     def create_bellman_ford_graph(self):
+        """
+        init bellman ford graph with all operations times
+        return: Bellman_Ford object
+        """
         graph = Bellman_Ford(len(self.operations) + 2)
         for op in self.__sort_operations_by_preferences(self.__sort_operations_by_pref).keys():
             for pre_op in self.preferences[op]:
