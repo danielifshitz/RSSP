@@ -178,10 +178,12 @@ class B_and_B():
         node: Node, the node with all equations
         return: None
         """
-        i, m, r = node.equation.cols_to_remove[0][1:-2].split(",")
+        # step over X and the l not need in the split
+        i, m, r, _ = node.equation.cols_to_remove[0][1:].split(",")
         zero_choices = {}
         for x in node.equation.cols_to_remove:
-            other_i, other_m, other_r = x[1:-2].split(",")
+            # step over X and the other_l not need in the split
+            other_i, other_m, other_r, _ = x[1:].split(",")
             if i == other_i and m == other_m and r == other_r:
                 self.set_x_to_one(node, x)
                 zero_choices[x] = 0
