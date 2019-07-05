@@ -1,5 +1,6 @@
 import random
 import time
+import csv
 
 class GA:
 
@@ -124,11 +125,13 @@ class GA:
         job: Job object, all problem data
         return: dictionary, {"value": best found ub, "generations": number of generations, "time": run time}
         """
+        history = []
         start = time.time()
         # create first population for the algorithm
         population = self.first_population(job.operations, job.next_operations)
         # calcolate population score by the job fitness function
         fitness = [job.find_UB_ga(genotype["operations"], genotype["modes"])["value"] for genotype in population]
+        history.append(sum(fitness) / float(len(fitness)))
         for generation in range(self.generations):
             # calcolate the probability of each gen to be selected as parent
             probability = [1 / item for item in fitness]
@@ -155,11 +158,15 @@ class GA:
 
             population = new_population[:self.population_size]
             fitness = new_fitness[:self.population_size]
+            history.append(sum(fitness) / float(len(fitness)))
             # we may stack in local minimom, try to escape by incrise the mutation chance
             if fitness[0] == fitness[-1]:
                 self.mode_mutation *= 2
                 self.op_mutation *= 2
 
         run_time = time.time() - start
+        with open("ga.csv", "a+") as f:
+            writer = csv.writer(f)
+            writer.writerow(history)
         # return the solution value, number of generations and the taken time
         return {"value": fitness[-1], "generations": generation, "time": run_time}

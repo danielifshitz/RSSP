@@ -228,7 +228,8 @@ class Job:
             found = True
             # check all resources
             for resource in mode.resources:
-                # if the index less the the number of resource usage 
+                # check if the index less the number of resource usage
+                # if not, this usage will be added at the end of the resource time
                 if index[int(resource.number) -1] < len(mode_resorces_time[resource.number]) - 1:
                     # resource usage data, from the Resource object
                     resource_usage = resource.usage[op_mode]
@@ -304,6 +305,7 @@ class Job:
                 pre_dur.append(op_end_times[pre.number])
 
             if selected_mode:
+                # modes = [mode for mode in operation.modes if mode.mode_number == selected_mode]
                 for mode in operation.modes:
                     if mode.mode_number == selected_mode:
                         modes = [mode]

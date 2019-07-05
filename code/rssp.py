@@ -103,16 +103,18 @@ def draw_rectangle(start_y, end_y, value, width=2, text=""):
 
 def solve_problem(args):
     job = Job(args.problem_number, args.cplex_auto_solution, args.ub, args.sort_x, args.sort_x and args.reverse)
-    print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB)
-    print("starting solve")
+    print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB, "\nLB =", job.LB)
     start = time.time()
-    BB = B_and_B(job.cplex["obj"], job.cplex["ub"], job.cplex["lb"], job.cplex["ctype"],
-                job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
-                job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
-                job.x_names, job.LB, job.UB, args.sp)
     if job.UB == job.LB:
+        print("LB = UB")
         choices, nodes, queue_size, SPs_value, solution_value, MIP_infeasible = None, 0, 0, 0, job.UB, "False"
     else:
+        print("starting solve B&B")
+        BB = B_and_B(job.cplex["obj"], job.cplex["ub"], job.cplex["lb"], job.cplex["ctype"],
+                    job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
+                    job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
+                    job.x_names, job.LB, job.UB, args.sp)
+    
         choices, nodes, queue_size, SPs_value, solution_value, MIP_infeasible = BB.solve_algorithem(args.init_resource_by_labels,
                                                                                                     disable_prints=False,
                                                                                                     cplex_auto_solution=args.cplex_auto_solution)
