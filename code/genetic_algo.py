@@ -168,5 +168,9 @@ class GA:
         with open("ga.csv", "a+") as f:
             writer = csv.writer(f)
             writer.writerow(history)
-        # return the solution value, number of generations and the taken time
-        return {"value": fitness[-1], "generations": generation, "time": run_time}
+
+        # return the solution value, number of generations, the taken time and the solution draw data
+        solution_draw_data = job.find_UB_ga(population[0]["operations"], population[0]["modes"])["to_draw"]
+        # modify the solution title to the GA run time
+        solution_draw_data["title"] = "solution in {:.10f} sec\ncreated nodes = 0, max queue size = 0".format(run_time)
+        return {"value": fitness[0], "generations": generation, "time": run_time, "to_draw": solution_draw_data}

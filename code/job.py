@@ -10,6 +10,10 @@ from genetic_algo import GA
 
 class Job:
 
+    """
+    this class read problems from the database, calculate the UB and LB and create equations.
+    """
+
     def __init__(self, problem_id, cplex_solution=False, ub=None, sort_x=None, reverse=False):
         self.N = 1e4
         self.resources = {}
@@ -45,8 +49,11 @@ class Job:
             self.UBs["ga_3"] = ga.solve(self)
             self.UBs["ga_4"] = ga.solve(self)
         self.UB = float("inf")
+        self.draw_UB = None
         for solution in self.UBs.values():
-            self.UB = min(self.UB, solution["value"])
+            if solution["value"] < self.UB:
+                self.UB = solution["value"]
+                self.draw_UB = solution["to_draw"]
 
 
     def next_operations(self, choices):
@@ -172,9 +179,9 @@ class Job:
     def __sort_operations_by_pref_recursive(self, op_list):
         """
         a recursive funcion that calculate the max number of operation that need to be pass to arrive
-            to operation with out preferences operations.
+            to operation without preferences operations.
         op_list: operation[], list of preferences operations that need to be checked
-        return: number, the langth from operation with out preferences operations
+        return: number, the length from operation without preferences operations
         """
         if not op_list:
             return 0
@@ -302,7 +309,7 @@ class Job:
             pre_dur = [0]
             # save all preferences operation end time
             for pre in self.preferences[name]:
-                pre_dur.append(op_end_times[pre.number])
+                pre_dur.append(op_end_times[pre.number]["end_time"])
 
             if selected_mode:
                 # modes = [mode for mode in operation.modes if mode.mode_number == selected_mode]
@@ -321,8 +328,43 @@ class Job:
                     best_resorces_time = mode_resorces_time
                     min_time_mode = mode_time
                     choisen_operation = mode.op_number
+                    best_mode = mode
 
-        return best_resorces_time, min_time_mode, choisen_operation
+        return best_resorces_time, min_time_mode, choisen_operation, best_mode
+
+
+    def init_operations_UB_to_draw(self, op_end_times, solution_data):
+        """
+        creat dictionary with all data to draw the solution, this dictionary contains:
+            mode: the selected mode number for each operation
+            start: operation start time
+            duration: operation duration
+            resources: for each operation we save in dictionary {"start" : resource global start time, "duration" : resource duration}
+        with this data we can draw the solution if the UB = LB
+        op_end_times: dictionary, for each operation  we save {"mode": Mode object, "end_time": operation global end time }
+        solution_data: string with solution data: time, number of nodes and queue size
+        return dictionary {"operations": dictionary, "title": string, "choices_modes": list of strings}
+        """
+        operations = {}
+        choices_modes = []
+        for operation_name, operation_data in op_end_times.items():
+            operations[operation_name] = {"resources": {}}
+            mode = operation_data["mode"]
+            # save the string which show the selected mode for each operation
+            choices_modes.append("operation " + operation_name + "\nmode " + str(mode.mode_number))
+            operation_start_time = operation_data["end_time"] - mode.tim
+            # operation start time
+            operations[operation_name]["start"] = operation_start_time
+            # operation duration
+            operations[operation_name]["duration"] = mode.tim
+            # for each operation save resources data
+            for resource in mode.resources:
+                resource_duration = resource.get_usage_duration(operation_name, mode.mode_number)
+                resource_start_time = resource.get_usage_start_time(operation_name, mode.mode_number)
+                # save the start time and the usage duration of the resource
+                operations[operation_name]["resources"][resource.number] = {"start" : operation_start_time + resource_start_time, "duration" : resource_duration}
+
+        return {"operations": operations, "title": solution_data, "choices_modes": choices_modes}
 
 
     def __find_UB_greedy(self, sort_function, reverse=False):
@@ -330,7 +372,7 @@ class Job:
         find UB using greedy function.
         sort_function: function, the function that return the operations order
         reverse: boolean, send to the sort_function
-        return dictionary, found UB and how much time its took
+        return dictionary, found UB , how much time its took and draw data
         """
         start = time.time()
         op_end_times = {}
@@ -340,19 +382,20 @@ class Job:
 
         ub = 0
         for name, operation in self.__sort_operations_by_preferences(sort_function, reverse=reverse).items():
-            resorces_time, min_time_mode, choisen_operation = self.calc_adding_operations({name: operation}, op_end_times, resorces_time.copy())
+            resorces_time, min_time_mode, choisen_operation, best_mode = self.calc_adding_operations({name: operation}, op_end_times, resorces_time.copy())
             ub = max(ub, min_time_mode)
-            op_end_times[choisen_operation] = min_time_mode
+            op_end_times[choisen_operation] = {"mode": best_mode, "end_time": min_time_mode}
 
         run_time = time.time() - start
-        return {"value": ub, "time": run_time}
+        solution_data = "solution in {:.10f} sec\ncreated nodes = 0, max queue size = 0".format(run_time)
+        return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data)}
 
 
     def __find_UB_greedy_operations(self, less_modes=False):
         """
         find UB using greedy function.
         less_modes: boolean, if true, we will sort by operation modes number
-        return dictionary, found UB and how much time its took
+        return dictionary, found UB , how much time its took and draw data
         """
         start = time.time()
         op_end_times = {}
@@ -368,18 +411,21 @@ class Job:
             if less_modes:
                 operations = min(operations.values(), key=lambda operation: len(operation.modes))
                 operations = {operations.number: operations}
-            resorces_time, min_time_mode, choisen_operation = self.calc_adding_operations(operations, op_end_times, resorces_time.copy())
+            resorces_time, min_time_mode, choisen_operation, best_mode = self.calc_adding_operations(operations, op_end_times, resorces_time.copy())
             ub = max(ub, min_time_mode)
-            op_end_times[choisen_operation] = min_time_mode
+            op_end_times[choisen_operation] = {"mode": best_mode, "end_time": min_time_mode}
             operations = self.next_operations(op_end_times.keys())
 
         run_time = time.time() - start
-        return {"value": ub, "time": run_time}
-
+        solution_data = "solution in {:.10f} sec\ncreated nodes = 0, max queue size = 0".format(run_time)
+        return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data)}
 
     def find_UB_ga(self, operations_order, selected_modes):
         """
-        find UB using ga function.
+        find UB using ga algorithm
+        operations_order: list of strings, the operations order
+        selected_modes: list of strings, the selected mode for each operation
+        return dictionary, found UB , how much time its took and draw data
         """
         start = time.time()
         op_end_times = {}
@@ -390,12 +436,12 @@ class Job:
         ub = 0
         for op_name in operations_order:
             operation = self.operations[op_name]
-            resorces_time, min_time_mode, choisen_operation = self.calc_adding_operations({op_name: operation}, op_end_times, resorces_time.copy(), str(selected_modes[int(op_name) - 1]))
+            resorces_time, min_time_mode, choisen_operation, best_mode = self.calc_adding_operations({op_name: operation}, op_end_times, resorces_time.copy(), str(selected_modes[int(op_name) - 1]))
             ub = max(ub, min_time_mode)
-            op_end_times[choisen_operation] = min_time_mode
+            op_end_times[choisen_operation] = {"mode": best_mode, "end_time": min_time_mode}
 
         run_time = time.time() - start
-        return {"value": ub, "time": run_time}
+        return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data="")}
 
 
     def create_bellman_ford_graph(self):

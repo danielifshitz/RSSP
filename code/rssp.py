@@ -36,7 +36,7 @@ def draw_solution(job_operations, choices, title):
                 i, m, r, l = name[1:].split(",")
                 # find the appropriate Tr,l for the Xi,m,r,l
                 resource_start_time = choices["T" + r + "," + l]
-                resource_duration = ""
+                resource_duration = None
                 # for each resource save it start time and duration
                 for resource in resources:
                     if resource.number == r:
@@ -107,6 +107,9 @@ def solve_problem(args):
     start = time.time()
     if job.UB == job.LB:
         print("LB = UB")
+        if args.graph_solution:
+            draw_collected_data(job.draw_UB["operations"], job.draw_UB["title"], job.draw_UB["choices_modes"])
+
         choices, nodes, queue_size, SPs_value, solution_value, MIP_infeasible = None, 0, 0, 0, job.UB, "False"
     else:
         print("starting solve B&B")
@@ -114,7 +117,7 @@ def solve_problem(args):
                     job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
                     job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
                     job.x_names, job.LB, job.UB, args.sp)
-    
+
         choices, nodes, queue_size, SPs_value, solution_value, MIP_infeasible = BB.solve_algorithem(args.init_resource_by_labels,
                                                                                                     disable_prints=False,
                                                                                                     cplex_auto_solution=args.cplex_auto_solution)

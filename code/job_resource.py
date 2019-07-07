@@ -43,3 +43,14 @@ class Resource:
         """
         op_mode = operation + ',' + mode
         return self.usage[op_mode]["duration"]
+
+
+    def get_usage_start_time(self, operation, mode):
+        """
+        return the start_time of the usage of this resource by the given operation and mode
+        operation : string, operatoin number
+        mode: string, mode number
+        return: int
+        """
+        op_mode = operation + ',' + mode
+        return self.usage[op_mode]["start_time"]
