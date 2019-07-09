@@ -103,7 +103,8 @@ class Equations:
             # set problem data, as writen in the cplex documentation
             self.__populatebynonzero(prob)
             prob.solve()
-
+            if file_name:
+                prob.write(file_name)
         except CplexError as exc:
             print(exc)
             input("press any key to continue")
