@@ -102,8 +102,8 @@ def draw_rectangle(start_y, end_y, value, width=2, text=""):
 
 
 def solve_problem(args):
-    job = Job(args.problem_number, args.cplex_auto_solution, args.ub, args.sort_x, args.sort_x and args.reverse)
-    print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB, "\nLB =", job.LB)
+    job = Job(args.problem_number, args.cplex_auto_solution, args.ub, args.sort_x, args.sort_x and args.reverse ,args.repeate)
+    print("operations =", len(job.operations), "|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB, "\nLB =", job.LB)
     start = time.time()
     if job.UB == job.LB:
         print("LB = UB")
@@ -179,6 +179,8 @@ def arguments_parser():
     parser.add_argument('-g', "--graph_solution", action='store_false',
         help='disable the show of the solution with graphs')
     parser.add_argument('-a', "--all_flags", action='store_true',
+        help='for each every selected problem run all 16 options')
+    parser.add_argument('-r', "--repeate", type=int,
         help='for each every selected problem run all 16 options')
     return parser.parse_args()
 

@@ -161,8 +161,7 @@ class GA:
             history.append(sum(fitness) / float(len(fitness)))
             # we may stack in local minimom, try to escape by incrise the mutation chance
             if fitness[0] == fitness[-1]:
-                self.mode_mutation *= 2
-                self.op_mutation *= 2
+                break
 
         run_time = time.time() - start
         with open("ga.csv", "a+") as f:

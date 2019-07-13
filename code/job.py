@@ -14,7 +14,7 @@ class Job:
     this class read problems from the database, calculate the UB and LB and create equations.
     """
 
-    def __init__(self, problem_id, cplex_solution=False, ub=None, sort_x=None, reverse=False):
+    def __init__(self, problem_id, cplex_solution=False, ub=None, sort_x=None, reverse=False, repeate=1):
         self.N = 1e4
         self.resources = {}
         self.operations = {}
@@ -23,17 +23,10 @@ class Job:
             'rownames' : [], 'sense' : "", 'rows' : [], 'cols' : [], 'vals' : []}
         self.x_names = []
         self.UB = 0
-        self.sql_problem(problem_id)
+        self.sql_problem(problem_id, repeate)
+        # for each operation save the preferences len to start, used in recursive functions
+        self.operations_preferences_position = [-1] * len(self.operations)
         self.__find_rtag_and_tim()
-        if sort_x == "pre":
-            self.operations = self.__sort_operations_by_preferences(self.__sort_operations_by_pref, reverse)
-            self.create_x_i_m_r_l()
-        elif sort_x == "res":
-            self.__sort_x_by_resources(reverse)
-        else:
-            self.create_x_i_m_r_l()
-        self.__init_cplex_variable_parameters(cplex_solution)
-        self.__create_equations()
         graph = self.create_bellman_ford_graph()
         self.LB = graph.bellman_ford_LB(0, len(self.operations) + 1)
         self.UBs = {}
@@ -55,6 +48,18 @@ class Job:
                 self.UB = solution["value"]
                 self.draw_UB = solution["to_draw"]
 
+        # if the LB = UB we not to create equations
+        if self.UB != self.LB:
+            if sort_x == "pre":
+                self.operations = self.__sort_operations_by_preferences(self.__sort_operations_by_pref, reverse)
+                self.create_x_i_m_r_l()
+            elif sort_x == "res":
+                self.__sort_x_by_resources(reverse)
+            else:
+                self.create_x_i_m_r_l()
+            self.__init_cplex_variable_parameters(cplex_solution)
+            self.__create_equations()
+
 
     def next_operations(self, choices):
         """
@@ -73,14 +78,11 @@ class Job:
         return next_ops
 
 
-    def sql_problem(self, problem_ID):
+    def read_OpMoRe_query(self, query, repeate):
         """
-        read problrm data from the DB using sql querys and initialize all class parameters.
-        the DB contains 2 tables with problem data:
-            * OpMoRe: the start time and the duration of resource use by operation in some mode.
-            * Priority: operations and there preferences operations
-        from each table we take the relevant data by using the problem_ID.
-        problem_ID: number, the wanted problem number to be sulved
+        take data from OpMoRe query and initialize all class parameters.
+        query: dictionary, the OpMoRe query
+        repeate: number, number of times to duplicate the problem
         return: None
         """
         OPERATION = 0
@@ -88,36 +90,88 @@ class Job:
         RESOURCE = 2
         START = 3
         DURATION = 4
+        operations_added = 0 # use to save the number of operations that were created in the last repeate 
+        for _ in range(repeate):
+            # from every line take operation,mode, resources and times
+            for row in query:
+                operation = str(operations_added + row[OPERATION])
+                resource = str(row[RESOURCE])
+                mode = str(row[MODE])
+                # if the resource first seen, create it
+                if resource not in self.resources:
+                    self.resources[resource] = Resource(resource)
+                # if the operation first seen, create it and add it into preferences dictionary
+                if operation not in self.operations:
+                    self.operations[operation] = Operation(operation)
+                    self.preferences[operation] = []
+                # add mode to operation with all relevent data
+                self.operations[operation].add_mode(mode, self.resources[resource], row[START], row[DURATION])
+            operations_added = len(self.operations)
+
+
+    def get_rearguard_operations(self, operations_in_cycle):
+        """
+        find and return all operations that no one need them as preferences operations
+        operations_in_cycle: number of operations in cycle (operation length / repeate)
+        return: list, rearguard operations
+        """
+        rearguard_operations = [0] * operations_in_cycle
+        for pre_list in self.preferences.values():
+            for pre_op in pre_list:
+                rearguard_operations[int(pre_op.number) - 1] += 1
+        return [index+1 for index, op in enumerate(rearguard_operations) if op == 0]
+
+
+    def read_Priority_query(self, query, repeate):
+        """
+        take data from Priority query and initialize preferences dictionary.
+        query: dictionary, the Priority query
+        repeate: number, number of times to duplicate the problem
+        return: None
+        """
+        OPERATION = 0
         PRE_OP = 1
+        operations_in_cycle = int(len(self.operations) / repeate)
+        for loop in range(repeate):
+            # from every line take operation and preferences
+            for row in query:
+                # if row[PRE_OP]:
+                operation = str(operations_in_cycle * loop + row[OPERATION])
+                pre_op = str(operations_in_cycle * loop + row[PRE_OP])
+                # add preference operation (Operation object) to the preferences dictionary
+                self.preferences[operation].append(self.operations[pre_op])
+
+            if loop == 0:
+                rearguard_operations = self.get_rearguard_operations(operations_in_cycle)
+
+            else:
+                # form repeate 2 to n, every operation that hasn't preferences, use last rearguard operations as her preferences operations
+                for operation_number in range(loop * operations_in_cycle + 1, (loop + 1) * operations_in_cycle + 1):
+                    if not self.preferences[str(operation_number)]:
+                        for pre_op in rearguard_operations:
+                            self.preferences[str(operation_number)].append(self.operations[str(operations_in_cycle * (loop - 1) + pre_op)])
+
+
+    def sql_problem(self, problem_ID, repeate):
+        """
+        read problrm data from the DB using sql querys and initialize all class parameters.
+        the DB contains 2 tables with problem data:
+            * OpMoRe: the start time and the duration of resource use by operation in some mode.
+            * Priority: operations and there preferences operations
+        from each table we take the relevant data by using the problem_ID.
+        problem_ID: number, the wanted problem number to be sulved
+        repeate: number, number of times to duplicate the problem
+        return: None
+        """
         conn = connect('data.db')
         c = conn.cursor()
         c.execute("SELECT Oper_ID, Mode_ID, Res_ID, Ts,(Tf - Ts) AS DUR FROM OpMoRe where Problem_ID = {0} ORDER BY Oper_ID, Mode_ID, Res_ID".format(problem_ID))
         query = c.fetchall()
-        # from every line take operation,mode, resources and times
-        for row in query:
-            operation = str(row[OPERATION])
-            resource = str(row[RESOURCE])
-            mode = str(row[MODE])
-            # if the resource first seen, create it
-            if resource not in self.resources:
-                self.resources[resource] = Resource(resource)
-            # if the operation first seen, create it and add it into preferences dictionary
-            if operation not in self.operations:
-                self.operations[operation] = Operation(operation)
-                self.preferences[operation] = []
-            # add mode to operation with all relevent data
-            self.operations[operation].add_mode(mode, self.resources[resource], row[START], row[DURATION])
+        self.read_OpMoRe_query(query, repeate)
 
         c.execute("SELECT Suc_Oper_ID, Pre_Oper_ID FROM Priority where Problem_ID = {0} ORDER BY Suc_Oper_ID, Pre_Oper_ID".format(problem_ID))
         query = c.fetchall()
-        # from every line take operation and preferences
-        for row in query:
-            if row[PRE_OP]:
-                operation = str(row[OPERATION])
-                pre_op = str(row[PRE_OP])
-                # add preference operation (Operation object) to the preferences dictionary
-                self.preferences[operation].append(self.operations[pre_op])
-
+        self.read_Priority_query(query, repeate)
         conn.close()
 
 
@@ -142,7 +196,8 @@ class Job:
         return: dictionary of operaions
         """
         # create a list that contains all operations number and sorted by there preferences length
-        op_order = sorted(self.operations, key=lambda op: sort_function(op), reverse=reverse)
+        operations_preferences_len = [-1] * len(self.operations)
+        op_order = sorted(self.operations, key=lambda op: sort_function(op, operations_preferences_len), reverse=reverse)
         operations = {}
         # create dictionary of [operation number: operation object]
         for op in op_order:
@@ -150,21 +205,24 @@ class Job:
         return operations
 
 
-    def __sort_operations_by_pref_len(self, op):
+    def __sort_operations_by_pref_len(self, op, operations_preferences_len):
         """
-        a recursive funcion that calculate the max number of operation that came after given operation
+        a recursive funcion that calculate the max number of operation that came after the given operation
         op: string, operation name
+        operations_preferences_len: list, save the len for each operation to save not needed calculations
         return: number, the max len of the operation that need this opearion
         """
-        preferences_len = [0]
-        # check every operation
-        for operation, preferences in self.preferences.items():
-            # if operation have the given operation in it's preferences
-            if self.operations[op] in preferences:
-                # check the len of the operation and add 1 to the len
-                preferences_len.append(self.__sort_operations_by_pref_len(operation) + 1)
+        if operations_preferences_len[str(op)] == -1:
+            preferences_len = [0]
+            # check every operation
+            for operation, preferences in self.preferences.items():
+                # if operation have the given operation in it's preferences
+                if self.operations[op] in preferences:
+                    # check the len of the operation and add 1 to the len
+                    preferences_len.append(self.__sort_operations_by_pref_len(operation, operations_preferences_len) + 1)
 
-        return max(preferences_len)
+            operations_preferences_len[str(op)] = max(preferences_len)
+        return operations_preferences_len[str(op)]
 
 
     def __sort_operations_by_pref(self, op):
@@ -173,7 +231,9 @@ class Job:
         op: string, operation name
         return: number
         """
-        return self.__sort_operations_by_pref_recursive(self.preferences[op])
+        if self.operations_preferences_position[int(op) - 1] == -1:
+            self.operations_preferences_position[int(op) - 1] = self.__sort_operations_by_pref_recursive(self.preferences[op])
+        return self.operations_preferences_position[int(op) - 1]
 
 
     def __sort_operations_by_pref_recursive(self, op_list):
@@ -186,7 +246,15 @@ class Job:
         if not op_list:
             return 0
 
-        return max([self.__sort_operations_by_pref_recursive(self.preferences[op.number]) for op in op_list]) + 1
+        distance = 0
+        for op in op_list:
+            if self.operations_preferences_position[int(op.number) - 1] == -1:
+                distance = max(distance, self.__sort_operations_by_pref_recursive(self.preferences[op.number]))
+            else:
+                distance = max(distance, self.operations_preferences_position[int(op.number) - 1])
+
+        return distance + 1
+        # return max([self.__sort_operations_by_pref_recursive(self.preferences[op.number]) for op in op_list]) + 1
 
 
     def get_min_start_time(self, mode_resorces_time, mode, index, op_mode):
