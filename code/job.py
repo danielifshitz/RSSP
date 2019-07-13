@@ -90,7 +90,7 @@ class Job:
         RESOURCE = 2
         START = 3
         DURATION = 4
-        operations_added = 0 # use to save the number of operations that were created in the last repeate 
+        operations_added = 0 # use to save the number of operations that were created in the last repeate
         for _ in range(repeate):
             # from every line take operation,mode, resources and times
             for row in query:
