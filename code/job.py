@@ -83,6 +83,22 @@ class Job:
             self.__create_equations()
 
 
+    def get_mean_r_im(self):
+        mean_r_im = 0
+        for resource in self.resources.values():
+            mean_r_im += resource.size
+
+        return mean_r_im / len(self.resources)
+
+
+    def get_mean_modes(self):
+        mean_modes = 0
+        for operation in self.operations.values():
+            mean_modes += len(operation.modes)
+
+        return mean_modes / len(self.operations)
+
+
     def create_csv_file(self, problem_id):
         file = open("problem_{}.csv".format(problem_id), "w")
         file.write("Problem_ID,Oper_ID,Mode_ID,Res_ID,Ts,Tf,Pre_Oper_ID\n")

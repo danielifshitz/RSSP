@@ -125,7 +125,7 @@ def solve_problem(args):
     solution_data = "solution in {:.10f} sec\ncreated nodes = {}, max queue size = {}".format(end - start, nodes, queue_size)
     if args.graph_solution and choices and solution_data:
         draw_solution(job.operations.items(), choices, solution_data)
-    solution = "{}, {}, {:.2f}, {}, {}, {}".format(len(job.operations), len(job.resources), end - start, nodes, queue_size, MIP_infeasible)
+    solution = "{}, {}, {}, {}, {:.2f}, {}, {}, {}".format(len(job.operations), len(job.resources), job.get_mean_modes(), job.get_mean_r_im(), end - start, nodes, queue_size, MIP_infeasible)
     bounds_greedy_and_ga_data = "{}, {}".format(job.LB, job.UB)
     for ub_solution in job.UBs.values():
         bounds_greedy_and_ga_data += ", {}, {:.3f}, {}, {}".format(ub_solution["value"], ub_solution["time"], ub_solution["feasibles"], ub_solution["cross_solutions"])
