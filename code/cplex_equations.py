@@ -111,7 +111,7 @@ class Equations:
             return None
 
         status = prob.solution.get_status()
-        if status != 101:
+        if status != 101 and status != 102:
             # mixed-integer problems solution can't be found
             # if the status is 103, the problem is infeasible and can't be solved
             Equations.MIP_infeasible = Equations.MIP_infeasible or status == 103

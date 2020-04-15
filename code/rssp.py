@@ -102,8 +102,8 @@ def draw_rectangle(start_y, end_y, value, width=2, text=""):
 
 
 def solve_problem(args):
-    job = Job(args.problem_number, args.cplex_auto_solution, args.ub, args.sort_x, args.sort_x and args.reverse ,args.repeate)
-    print("operations =", len(job.operations), "|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB, "\nLB =", job.LB)
+    job = Job(args.problem_number, args.cplex_auto_solution, args.ub, args.sort_x, args.sort_x and args.reverse ,args.repeate, args.output_to_csv)
+    print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB, "\nLB =", job.LB)
     start = time.time()
     if job.UB == job.LB:
         print("LB = UB")
@@ -125,10 +125,10 @@ def solve_problem(args):
     solution_data = "solution in {:.10f} sec\ncreated nodes = {}, max queue size = {}".format(end - start, nodes, queue_size)
     if args.graph_solution and choices and solution_data:
         draw_solution(job.operations.items(), choices, solution_data)
-    solution = "{:.2f}, {}, {}, {}".format(end - start, nodes, queue_size, MIP_infeasible)
+    solution = "{}, {}, {:.2f}, {}, {}, {}".format(len(job.operations), len(job.resources), end - start, nodes, queue_size, MIP_infeasible)
     bounds_greedy_and_ga_data = "{}, {}".format(job.LB, job.UB)
     for ub_solution in job.UBs.values():
-        bounds_greedy_and_ga_data += ", {}, {:.3f}".format(ub_solution["value"], ub_solution["time"])
+        bounds_greedy_and_ga_data += ", {}, {:.3f}, {}, {}".format(ub_solution["value"], ub_solution["time"], ub_solution["feasibles"], ub_solution["cross_solutions"])
     return solution, SPs_value, bounds_greedy_and_ga_data, solution_value
 
 
@@ -158,7 +158,7 @@ def arguments_parser():
     parser = argparse.ArgumentParser(description=usage, prog='rssp.py')
     subparsers = parser.add_subparsers(dest='sort_x',
         help='sort xi,m,r,l')
-    parser.add_argument('--ub', choices=['ga', 'greedy', 'both'],
+    parser.add_argument('--ub', choices=['ga', 'greedy', 'both', 'ga_multi_lines', 'ga_one_line'],
         help='run 4 GA or/and 4 different greedy algorithm to calculate problems UB')
     preferences_parser = subparsers.add_parser('pre',
         help='sort Xi,m,r,l by operation preferences')
@@ -179,9 +179,11 @@ def arguments_parser():
     parser.add_argument('-g', "--graph_solution", action='store_false',
         help='disable the show of the solution with graphs')
     parser.add_argument('-a', "--all_flags", action='store_true',
-        help='for each every selected problem run all 16 options')
-    parser.add_argument('-r', "--repeate", type=int,
-        help='for each every selected problem run all 16 options')
+        help='for every selected problem run all 16 options')
+    parser.add_argument('-r', "--repeate", type=int, default=1,
+        help='duplicate the problem to increace its size')
+    parser.add_argument('-o', "--output_to_csv", action='store_true',
+        help='for every selected problem run all 16 options')
     return parser.parse_args()
 
 
@@ -195,12 +197,11 @@ def main():
         start = int(problems[0])
         end = int(problems[1]) + 1
         for problem in range(start, end):
-            print(problem)
+            print("problem number:", problem)
             f.write("{}, ".format(problem))
             args.problem_number = problem
             SPs_value = 0
             bounds_greedy_and_ga_data = ""
-            solution = 0
             if args.all_flags:
                 layouts = [{"init_resource_by_labels" : False, "sp" : False},
                         {"init_resource_by_labels" : True, "sp" : False},

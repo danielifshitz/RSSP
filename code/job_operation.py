@@ -11,6 +11,7 @@ class Operation:
         self.number = number
         self.modes = []
         self.all_resources = {}
+        self.preferences_operations = []
 
 
     def add_mode(self, mode_number, resource, start, dur):
@@ -42,6 +43,13 @@ class Operation:
         mode = Mode(mode_number,self.number)
         mode.add_resource(resource, start, dur)
         self.modes.append(mode)
+
+    def get_mode_by_name(self, name):
+        for mode in self.modes:
+            if mode.mode_number == name:
+                return mode
+
+        return None
 
 
     def get_min_tim(self):

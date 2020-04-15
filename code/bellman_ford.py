@@ -31,13 +31,18 @@ class Bellman_Ford:
         return: the max distance from src vertices to dest vertices
         """
         # Initialize distances from src to all other vertices
-        dist = [float("-Inf")] * self.V
+        minus_inf = float("-Inf")
+        dist = [minus_inf] * self.V
         dist[src] = 0 # the s verticle
-
         # Update dist value and parent index of the adjacent vertices of the
         # picked vertex. Consider only those vertices which are still in queue
-        for u, v, w in self.graph:
-            if dist[u] != float("-Inf") and dist[u] + w > dist[v]:
+        for _ in range(self.V - 1):
+            for u, v, w in self.graph:
+                if dist[u] != minus_inf and dist[u] + w > dist[v]:
                     dist[v] = dist[u] + w
+
+        for u, v, w in self.graph:
+            if dist[u] != minus_inf and dist[u] + w > dist[v]:
+                return
 
         return dist[dest]
