@@ -29,6 +29,7 @@ class Job:
         # for each operation save the preferences len to start, used in recursive functions
         self.operations_preferences_position = [-1] * len(self.operations)
         self.__find_rtag_and_tim()
+        self.cross_operations = len(self.calc_cross_operations())
         self.operations_preferences_len = [-1] * len(self.operations)
         for op in self.operations.keys():
             self.__sort_operations_by_pref_len(op, self.operations_preferences_len)
@@ -83,12 +84,33 @@ class Job:
             self.__create_equations()
 
 
+    def calc_cross_operations(self):
+        operations = {op:set((op)) for op in self.operations.keys()}
+        for _ in range(len(self.operations)):
+            for op, preferences in self.preferences.items():
+                for pref in preferences:
+                    operations[op].update(operations[pref.number])
+
+        preferences = []
+        for op_1, op_set_1 in operations.items():
+            for op_2, op_set_2 in operations.items():
+                if op_1 != op_2 and op_1 not in op_set_2 and op_2 not in op_set_1:
+                    op_min = min(op_1, op_2)
+                    op_max = max(op_1, op_2)
+                    preferences.append((op_min, op_max))
+
+        return list(set(preferences))
+
+
     def get_mean_r_im(self):
         mean_r_im = 0
-        for resource in self.resources.values():
-            mean_r_im += resource.size
+        modes = 0
+        for operation in self.operations.values():
+            for mode in operation.modes:
+                mean_r_im += len(mode.resources)
+                modes += 1
 
-        return mean_r_im / len(self.resources)
+        return mean_r_im / modes
 
 
     def get_mean_modes(self):

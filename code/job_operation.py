@@ -11,7 +11,6 @@ class Operation:
         self.number = number
         self.modes = []
         self.all_resources = {}
-        self.preferences_operations = []
 
 
     def add_mode(self, mode_number, resource, start, dur):
