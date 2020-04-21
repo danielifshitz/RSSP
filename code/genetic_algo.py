@@ -68,7 +68,7 @@ class GA:
                     possible_resources = preferences_function(data[resource])
 
             solution = fitness_function(data, modes, self.no_cross_solutions)
-            if solution:
+            if solution["value"]:
                 # for each gen, save the choisen modes and the operations order
                 self.feasibles_counter += 1
                 if self.check_cross_solution(data, modes, operations):
