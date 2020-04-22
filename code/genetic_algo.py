@@ -11,7 +11,7 @@ class GA:
     by the given data, the algorithm try to solve the problem
     """
 
-    def __init__(self, generations = 50, population_size=50, mode_mutation=0.04, data_mutation=0.04):
+    def __init__(self, generations = 50, population_size=50, mode_mutation=0.04, data_mutation=0.04, solve_using_cross_solutions=True, check_cross_solution=None):
         self.generations = generations
         self.population_size = population_size
         self.mode_mutation = mode_mutation
@@ -19,11 +19,15 @@ class GA:
         self.infeasibles_counter = 0
         self.feasibles_counter = 0
         self.cross_solutions = 0
-        self.no_cross_solutions = False
+        self.solve_using_cross_solutions = solve_using_cross_solutions
+        if check_cross_solution:
+            self.check_cross_solution = check_cross_solution
+        else:
+            self.check_cross_solution = self.check_cross_solution_func
 
 
-    def set_no_cross_solutions(self):
-        self.no_cross_solutions = True
+    def check_cross_solution_func(self):
+        return False
 
 
     def first_population(self, operations, preferences_function, fitness_function, resources_number=1):
@@ -46,10 +50,6 @@ class GA:
         return population, fitness
 
 
-    def check_cross_solution(self, resources, modes, operations):
-        return False
-
-
     def __create_feasible_gen(self, operations, preferences_function, fitness_function, resources_number):
         while True:
             modes = []
@@ -67,11 +67,11 @@ class GA:
                     data[resource].append(random.choice(possible_resources))
                     possible_resources = preferences_function(data[resource])
 
-            solution = fitness_function(data, modes, self.no_cross_solutions)
+            solution = fitness_function(data, modes, self.solve_using_cross_solutions)
             if solution["value"]:
                 # for each gen, save the choisen modes and the operations order
                 self.feasibles_counter += 1
-                if self.check_cross_solution(data, modes, operations):
+                if self.check_cross_solution(data, modes):
                     self.cross_solutions += 1
                 return {"modes": modes, "data": data}, solution["value"]
 
@@ -182,11 +182,11 @@ class GA:
                 son_1, son_2 = self.crossover(parent_1, parent_2)
                 son_1 = self.mutation(son_1, job.operations, job.next_operations)
                 son_2 = self.mutation(son_2, job.operations, job.next_operations)
-                solution_1 = fitness_function(son_1["data"], son_1["modes"], self.no_cross_solutions)["value"]
+                solution_1 = fitness_function(son_1["data"], son_1["modes"], self.solve_using_cross_solutions)["value"]
                 if not solution_1:
                     son_1, solution_1 = self.__create_feasible_gen(job.operations, job.next_operations, fitness_function, lines)
 
-                solution_2 = fitness_function(son_2["data"], son_2["modes"], self.no_cross_solutions)["value"]
+                solution_2 = fitness_function(son_2["data"], son_2["modes"], self.solve_using_cross_solutions)["value"]
                 if not solution_2:
                     son_2, solution_2 = self.__create_feasible_gen(job.operations, job.next_operations, fitness_function, lines)
 
@@ -217,7 +217,7 @@ class GA:
 
         # return the solution value, number of generations, the taken time and the solution draw data
         if to_draw:
-            solution_draw_data = fitness_function(population[0]["data"], population[0]["modes"], self.no_cross_solutions)["to_draw"]
+            solution_draw_data = fitness_function(population[0]["data"], population[0]["modes"], self.solve_using_cross_solutions)["to_draw"]
             # modify the solution title to the GA run time
             solution_draw_data["title"] = "solution in {:.10f} sec\ncreated nodes = 0, max queue size = 0".format(run_time)
         else:

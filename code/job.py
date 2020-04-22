@@ -44,21 +44,27 @@ class Job:
             self.UBs["preferences"] = self.__find_UB_greedy(self.__sort_operations_by_pref_len, reverse=True)
             self.UBs["preferences_mode"] = self.__find_UB_greedy_operations(less_modes=True)
         if ub.startswith("ga") or ub == "both":
-            ga = GA()
             if ub == "ga_multi_lines":
                 fitness_function = self.add_resources_to_bellman_ford_graph
                 lines = len(self.resources)
                 to_draw = False
+                solve_using_cross_solutions=True
+                check_cross_solution=self.check_cross_solution
             elif ub == "ga_one_line":
                 fitness_function = self.find_UB_ga
                 lines = 1
                 to_draw = False
                 ga.set_no_cross_solutions()
+                solve_using_cross_solutions=False
+                check_cross_solution=None
             else:
                 fitness_function = self.find_UB_ga
                 lines = 1
                 to_draw = True
+                solve_using_cross_solutions=False
+                check_cross_solution=None
 
+            ga = GA(solve_using_cross_solutions=solve_using_cross_solutions, check_cross_solution=check_cross_solution)
             self.UBs["ga_1"] = ga.solve(self, fitness_function, lines, to_draw)
             self.UBs["ga_2"] = ga.solve(self, fitness_function, lines, to_draw)
             self.UBs["ga_3"] = ga.solve(self, fitness_function, lines, to_draw)
@@ -657,6 +663,34 @@ class Job:
             return {"value": ub, "time": run_time, "to_draw": None}
         else:
             return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data="")}
+
+
+    def check_cross_solution(self, data_list, modes_list):
+        operations_coef = {str(pos):set() for pos in range(1, len(data_list[0]) + 1)}
+        copy_data_list = [resources[:] for resources in data_list]
+        for res_number, operations in enumerate(copy_data_list, start=1):
+            index = 0
+            # remove all not needed resource from the resources list
+            while index < len(operations):
+                needed_resource = False
+                mode_resorces = self.operations[operations[index]].get_mode_by_name(str(modes_list[int(operations[index]) - 1])).resources
+                needed_resource = any(str(res_number) == resource.number for resource in mode_resorces)
+                if not needed_resource:
+                    operations.remove(operations[index])
+                # if the resource is used, check next resource and add 1 to the number of used resources
+                else:
+                    index += 1
+
+        for operations in copy_data_list:
+            for pos, op in enumerate(operations[:-1], start=1):
+                follow_operations = set(operations[pos:])
+                for follow_op in follow_operations:
+                    if op in operations_coef[follow_op]:
+                        return True
+                else:
+                    operations_coef[str(op)].update(follow_operations)
+
+        return False
 
 
     def add_resources_to_bellman_ford_graph(self, resources_list, modes_list, no_cross_solutions=False):

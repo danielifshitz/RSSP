@@ -125,10 +125,10 @@ def solve_problem(args):
     solution_data = "solution in {:.10f} sec\ncreated nodes = {}, max queue size = {}".format(end - start, nodes, queue_size)
     if args.graph_solution and choices and solution_data:
         draw_solution(job.operations.items(), choices, solution_data)
-    solution = "{}, {}, {:.2f}, {:.2f}, {}, {:.2f}, {}, {}, {}".format(len(job.operations), len(job.resources), job.get_mean_modes(), job.get_mean_r_im(), job.cross_operations, end - start, nodes, queue_size, MIP_infeasible)
+    solution = "{}, {}, {:.3f}, {:.3f}, {}, {:.3f}, {}, {}, {}".format(len(job.operations), len(job.resources), job.get_mean_modes(), job.get_mean_r_im(), job.cross_operations, end - start, nodes, queue_size, MIP_infeasible)
     bounds_greedy_and_ga_data = "{}, {}".format(job.LB, job.UB)
     for ub_solution in job.UBs.values():
-        bounds_greedy_and_ga_data += ", {}, {:.3f}, {}, {}".format(ub_solution["value"], ub_solution["time"], ub_solution["feasibles"], ub_solution["cross_solutions"])
+        bounds_greedy_and_ga_data += ", {}, {:.3f}, {:.3f}, {}".format(ub_solution["value"], ub_solution["time"], ub_solution["feasibles"], ub_solution["cross_solutions"])
     return solution, SPs_value, bounds_greedy_and_ga_data, solution_value
 
 
@@ -192,7 +192,7 @@ def main():
     args = arguments_parser()
     f = open("solutions.txt", "a")
     if stat("solutions.txt").st_size == 0:
-        f.write("Problem_ID, |Operations|, |Resources|, Avg(Mi), Avg(Rim), Cross operations, Total run time, Nodes, Queue size, MIP_infeasible, LB, UB")
+        f.write("Problem_ID, |Operations|, |Resources|, Avg(Mi), Avg(Rim), Cross_operations, Total_run_time, Nodes, Queue_size, MIP_infeasible, LB, UB")
         titles = []
         if args.ub == "greedy" or args.ub == "both":
             titles += ["greedy_{}".format(i) for i in range(1,5)]
@@ -203,7 +203,7 @@ def main():
         for t in titles:
             f.write(", {}, time, feasibles, cross_solutions".format(t))
 
-        f.write("\n")
+        f.write(", solution\n")
     problems_list = args.problem_number[:]
     for problems in problems_list:
         problems += ["{}".format(int(problems[0]))]
