@@ -170,7 +170,6 @@ class GA:
         # calcolate population score by the job fitness function
         history.append(sum(fitness) / len(fitness))
         for generation in range(self.generations):
-            print(time.time() - start)
             # print("generation:", generation)
             # calcolate the probability of each gen to be selected as parent
             probability = [1 / item for item in fitness]
