@@ -26,7 +26,7 @@ class GA:
             self.check_cross_solution = self.check_cross_solution_func
 
 
-    def check_cross_solution_func(self):
+    def check_cross_solution_func(self, foo, bar):
         return False
 
 
@@ -170,6 +170,7 @@ class GA:
         # calcolate population score by the job fitness function
         history.append(sum(fitness) / len(fitness))
         for generation in range(self.generations):
+            print(time.time() - start)
             # print("generation:", generation)
             # calcolate the probability of each gen to be selected as parent
             probability = [1 / item for item in fitness]

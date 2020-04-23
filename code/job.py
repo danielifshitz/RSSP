@@ -54,14 +54,13 @@ class Job:
                 fitness_function = self.find_UB_ga
                 lines = 1
                 to_draw = False
-                ga.set_no_cross_solutions()
                 solve_using_cross_solutions=False
                 check_cross_solution=None
             else:
                 fitness_function = self.find_UB_ga
                 lines = 1
                 to_draw = True
-                solve_using_cross_solutions=False
+                solve_using_cross_solutions=True
                 check_cross_solution=None
 
             ga = GA(solve_using_cross_solutions=solve_using_cross_solutions, check_cross_solution=check_cross_solution)
@@ -629,7 +628,7 @@ class Job:
         return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data), "feasibles": 100, "cross_solutions": -1}
 
 
-    def find_UB_ga(self, operations_order, selected_modes, no_cross_solutions=False):
+    def find_UB_ga(self, operations_order, selected_modes, solve_using_cross_solutions=True):
         """
         find UB using ga algorithm
         operations_order: list of strings, the operations order
@@ -640,29 +639,30 @@ class Job:
         op_end_times = {}
         resorces_time = {}
         for resorce in self.resources.keys():
-            if no_cross_solutions:
-                resorces_time[resorce] = {"start": 0, "end": 0}
-            else:
+            if solve_using_cross_solutions:
                 resorces_time[resorce] = [{"start": float("inf"), "end": float("inf")}]
+            else:
+                resorces_time[resorce] = {"start": 0, "end": 0}
 
         ub = 0
         for operations in operations_order:
             for op_name in operations:
                 operation = self.operations[op_name]
-                if no_cross_solutions:
-                    resorces_time, min_time_mode, choisen_operation, best_mode = self.calc_adding_operations_stuped({op_name: operation}, op_end_times, resorces_time.copy(), str(selected_modes[int(op_name) - 1]))
-                    ub = max(ub, min_time_mode)
-                    op_end_times[choisen_operation] = min_time_mode
-                else:
+                if solve_using_cross_solutions:
                     resorces_time, min_time_mode, choisen_operation, best_mode = self.calc_adding_operations({op_name: operation}, op_end_times, resorces_time.copy(), str(selected_modes[int(op_name) - 1]))
                     ub = max(ub, min_time_mode)
                     op_end_times[choisen_operation] = {"mode": best_mode, "end_time": min_time_mode}
 
+                else:
+                    resorces_time, min_time_mode, choisen_operation, best_mode = self.calc_adding_operations_stuped({op_name: operation}, op_end_times, resorces_time.copy(), str(selected_modes[int(op_name) - 1]))
+                    ub = max(ub, min_time_mode)
+                    op_end_times[choisen_operation] = min_time_mode
+
         run_time = time.time() - start
-        if no_cross_solutions:
-            return {"value": ub, "time": run_time, "to_draw": None}
-        else:
+        if solve_using_cross_solutions:
             return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data="")}
+        else:
+            return {"value": ub, "time": run_time, "to_draw": None}
 
 
     def check_cross_solution(self, data_list, modes_list):
@@ -693,7 +693,7 @@ class Job:
         return False
 
 
-    def add_resources_to_bellman_ford_graph(self, resources_list, modes_list, no_cross_solutions=False):
+    def add_resources_to_bellman_ford_graph(self, resources_list, modes_list, solve_using_cross_solutions=True):
         ga_bf_graph = self.create_bellman_ford_graph(modes_list)
         copy_resources_list = [resources[:] for resources in resources_list]
         for res_number, operations in enumerate(copy_resources_list, start=1):
