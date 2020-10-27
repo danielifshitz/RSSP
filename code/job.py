@@ -2,11 +2,13 @@ from sqlite3 import connect
 from cplex import infinity
 import time
 import copy
+import bisect
 import constraint_equations
 from job_operation import Operation
 from job_resource import Resource
 from bellman_ford import Bellman_Ford
 from genetic_algo import GA
+from statistics import stdev, mean, median
 
 class Job:
 
@@ -14,7 +16,7 @@ class Job:
     this class read problems from the database, calculate the UB and LB and create equations.
     """
 
-    def __init__(self, problem_id, cplex_solution=False, ub=None, sort_x=None, reverse=False, repeate=1, create_csv=False):
+    def __init__(self, problem_id, cplex_solution=False, ub=None, sort_x=None, reverse=False, repeate=1, create_csv=False, timeout=None):
         self.N = 1e4
         self.resources = {}
         self.operations = {}
@@ -23,13 +25,19 @@ class Job:
             'rownames' : [], 'sense' : "", 'rows' : [], 'cols' : [], 'vals' : []}
         self.x_names = []
         self.sql_problem(problem_id, repeate)
+        self.count_pref = 0
+        for pref in self.preferences.values():
+            self.count_pref += len(pref)
+
+        self.count_pref /= len(self.operations)
         if create_csv:
             self.create_csv_file(problem_id)
 
         # for each operation save the preferences len to start, used in recursive functions
         self.operations_preferences_position = [-1] * len(self.operations)
         self.__find_rtag_and_tim()
-        self.cross_operations = len(self.calc_cross_operations())
+        cross_operations = self.calc_cross_operations()
+        self.cross_resources = self.calc_cross_resources(cross_operations)
         self.operations_preferences_len = [-1] * len(self.operations)
         for op in self.operations.keys():
             self.__sort_operations_by_pref_len(op, self.operations_preferences_len)
@@ -43,7 +51,7 @@ class Job:
             self.UBs["operations"] = self.__find_UB_greedy_operations()
             self.UBs["preferences"] = self.__find_UB_greedy(self.__sort_operations_by_pref_len, reverse=True)
             self.UBs["preferences_mode"] = self.__find_UB_greedy_operations(less_modes=True)
-        if ub.startswith("ga") or ub == "both":
+        if ub and (ub.startswith("ga") or ub == "both"):
             if ub == "ga_multi_lines":
                 fitness_function = self.add_resources_to_bellman_ford_graph
                 lines = len(self.resources)
@@ -63,11 +71,9 @@ class Job:
                 solve_using_cross_solutions=True
                 check_cross_solution=None
 
-            ga = GA(solve_using_cross_solutions=solve_using_cross_solutions, check_cross_solution=check_cross_solution)
-            self.UBs["ga_1"] = ga.solve(self, fitness_function, lines, to_draw)
-            self.UBs["ga_2"] = ga.solve(self, fitness_function, lines, to_draw)
-            self.UBs["ga_3"] = ga.solve(self, fitness_function, lines, to_draw)
-            self.UBs["ga_4"] = ga.solve(self, fitness_function, lines, to_draw)
+            ga = GA(solve_using_cross_solutions=solve_using_cross_solutions, check_cross_solution=check_cross_solution, timeout=timeout)
+            self.UBs.update({"ga_{}".format(i): ga.solve(self, fitness_function, lines, to_draw) for i in range(1, 11)})
+
 
         self.draw_UB = None
         for solution in self.UBs.values():
@@ -87,6 +93,34 @@ class Job:
 
             self.__init_cplex_variable_parameters(cplex_solution)
             self.__create_equations()
+
+
+    def calc_cross_resources(self, cross_operations):
+        cross_counter = 0
+        for op_1, op_2 in cross_operations:
+            operation_1 = self.operations[op_1]
+            operation_2 = self.operations[op_2]
+            for op_1_mode in operation_1.modes:
+                if len(op_1_mode.resources) < 2:
+                    continue
+
+                for op_2_mode in operation_2.modes:
+                    if len(op_2_mode.resources) < 2:
+                        continue
+
+                    op_1_mode_resources = op_1_mode.resources
+                    op_2_mode_resources = op_2_mode.resources
+                    for res_1 in op_1_mode_resources:
+                        for res_2 in op_2_mode_resources:
+                            if res_1 != res_2 and res_1 in op_2_mode_resources and res_2 in op_1_mode_resources:
+                                 op_1_mode_resource_1_start = res_1.get_usage_start_time(op_1, op_1_mode.mode_number)
+                                 op_1_mode_resource_2_start = res_2.get_usage_start_time(op_1, op_1_mode.mode_number)
+                                 op_2_mode_resource_1_start = res_1.get_usage_start_time(op_2, op_2_mode.mode_number)
+                                 op_2_mode_resource_2_start = res_2.get_usage_start_time(op_2, op_2_mode.mode_number)
+                                 if op_1_mode_resource_1_start <= op_2_mode_resource_1_start and op_1_mode_resource_2_start >= op_2_mode_resource_2_start \
+                                    or op_1_mode_resource_1_start >= op_2_mode_resource_1_start and op_1_mode_resource_2_start <= op_2_mode_resource_2_start:
+                                    cross_counter += 1
+        return cross_counter
 
 
     def calc_cross_operations(self):
@@ -117,6 +151,70 @@ class Job:
 
         return mean_r_im / modes
 
+
+    def avg_t_im(self):
+        pim = []
+        for operation in self.operations.values():
+            for mode in operation.modes:
+                pim.append(mode.tim)
+
+        return mean(pim)
+
+
+    def avg_h_im(self, pim=None):
+        if not pim:
+            pim = self.avg_t_im()
+
+        him = []
+        for operation in self.operations.values():
+            for mode in operation.modes:
+                him.append(mode.sim / pim)
+
+        return mean(him)
+
+
+    def avg_d_im(self):
+        duration = []
+        for operation in self.operations.values():
+            for mode in operation.modes:
+                for resource in mode.resources:
+                    duration.append(resource.get_usage_duration(mode.op_number, mode.mode_number))
+
+        return mean(duration)
+
+
+    def get_r_im_range(self, range_mean=False, range_stdev=False, range_median=False, range_range=False, range_CV=False):
+        modes_range = []
+        modes_median = []
+        for operation in self.operations.values():
+            mode_min_len = float('inf')
+            mode_max_len = 1
+            for mode in operation.modes:
+                mode_len = len(mode.resources)
+                mode_min_len = min(mode_min_len, mode_len)
+                mode_max_len = max(mode_max_len, mode_len)
+                modes_median.append(mode_len)
+
+            modes_range.append(mode_max_len-mode_min_len)
+
+        try:
+            if range_mean:
+                return mean(modes_range)
+
+            if range_stdev:
+                return stdev(modes_range)
+
+            if range_median:
+                return median(modes_median)
+
+            if range_range:
+                return max(modes_range) - min(modes_range)
+
+            if range_CV:
+                return stdev(modes_range) / mean(modes_range)
+
+        except ZeroDivisionError:
+            return 0
 
     def get_mean_modes(self):
         mean_modes = 0
@@ -344,32 +442,32 @@ class Job:
         # return max([self.__sort_operations_by_pref_recursive(self.preferences[op.number]) for op in op_list]) + 1
 
 
-    def get_min_start_time(self, mode_resorces_time, mode, index, op_mode):
-        """
-        add all mode's resources and calcolate the finish time.
-        mode_resorces_time: dictionary, the resources usage time
-        mode: Mode, mode object
-        index: list of numbers, the number of times that each resource been used
-        op_mode: string, "operatin_mode" string
-        return: minimom start time for this mode
-        """
-        start_time = float("inf")
-        resource_numbers = []
-        for resource in mode.resources:
-            # if number of usage less then the last usage
-            if index[int(resource.number) -1] < len(mode_resorces_time[resource.number]) - 1:
-                if mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] < start_time:
-                    usage = resource.usage[op_mode]
-                    start_time = mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] - usage["start_time"]
-                    resource_numbers = [resource.number]
-                elif mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] == start_time:
-                    resource_numbers.append(resource.number)
+    # def get_min_start_time(self, mode_resorces_time, mode, index, op_mode):
+    #     """
+    #     add all mode's resources and calcolate the finish time.
+    #     mode_resorces_time: dictionary, the resources usage time
+    #     mode: Mode, mode object
+    #     index: list of numbers, the number of times that each resource been used
+    #     op_mode: string, "operatin_mode" string
+    #     return: minimom start time for this mode
+    #     """
+    #     start_time = float("inf")
+    #     resource_numbers = []
+    #     for resource in mode.resources:
+    #         # if number of usage less then the last usage
+    #         if index[int(resource.number) -1] < len(mode_resorces_time[resource.number]) - 1:
+    #             if mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] < start_time:
+    #                 usage = resource.usage[op_mode]
+    #                 start_time = mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] - usage["start_time"]
+    #                 resource_numbers = [resource.number]
+    #             elif mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] == start_time:
+    #                 resource_numbers.append(resource.number)
 
-        # add 1 to all usage resources
-        for resource_number in resource_numbers:
-            index[int(resource_number) -1] += 1
+    #     # add 1 to all usage resources
+    #     for resource_number in resource_numbers:
+    #         index[int(resource_number) -1] += 1
 
-        return start_time
+    #     return start_time
 
 
     def add_mode_cross_resources(self, start_time, mode_resorces_time, mode, op_mode):
@@ -380,52 +478,120 @@ class Job:
         mode: Mode, mode object
         op_mode: string, "operatin_mode" string
         """
-        index = [0] * len(mode_resorces_time)
+        start_indexs = {}
         # skip all not relevent options - by preferences
-        for resource in mode.resources:
-            while mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] <= start_time:
-                index[int(resource.number) -1] += 1
+        for resource in mode.resources: # O(Rim*Rl)
+            start_indexs[resource.number] = 1
+            while mode_resorces_time[resource.number][start_indexs[resource.number]]["end"] <= start_time:
+                start_indexs[resource.number] += 1
 
-        while True:
-            found = True
+        index = copy.deepcopy(start_indexs)
+
+        while True: # O(Rim*Rl)
             # check all resources
-            for resource in mode.resources:
-                # check if the index less the number of resource usage
-                # if not, this usage will be added at the end of the resource time
-                if index[int(resource.number) -1] < len(mode_resorces_time[resource.number]) - 1:
-                    # resource usage data, from the Resource object
+            resource_number = None
+            resource_usage = None
+            for resource in mode.resources: # O(Rim)
+                if not resource_number or mode_resorces_time[resource.number][index[resource.number]]["end"] < \
+                    mode_resorces_time[resource_number][index[resource_number]]["end"]:
+                    resource_number = resource.number
                     resource_usage = resource.usage[op_mode]
-                    current_usage = mode_resorces_time[resource.number][index[int(resource.number) -1]]
-                    next_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] + 1]
-                    # if the usage starts before the index usage
-                    if len(mode_resorces_time[resource.number]) > 2 and start_time < current_usage["start"]:
-                        search_index = 2
-                        pre_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] - 1]
-                        while pre_usage["start"] > start_time and index[int(resource.number) -1] - search_index >= 0:
-                            pre_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] - search_index]
-                            search_index += 1
 
-                        found = start_time + resource_usage["start_time"] + resource_usage["duration"] <= pre_usage["end"]
+            # resource usage data, from the Resource object
+            current_usage = mode_resorces_time[resource_number][index[resource_number]]
+            min_start_time = start_time
+            if current_usage["begin"] != float("inf"):
+                next_usage = mode_resorces_time[resource_number][index[resource_number] + 1]
+                # if the usage starts before the index usage
+                if current_usage["end"] + resource_usage["start_time"] + resource_usage["duration"] > next_usage["begin"]:
+                    index[resource_number] += 1
+                    continue
 
-                    # if the usage drops on the last usage
-                    if found and start_time + resource_usage["start_time"] < current_usage["end"]:
-                        found = start_time + resource_usage["start_time"] + resource_usage["duration"] <= current_usage["start"]
+                min_start_time = max(start_time, current_usage["end"] - resource_usage["start_time"])
 
-                    if found:
-                        search_index = 2
-                        while next_usage["end"] < start_time + resource_usage["start_time"]:
-                            next_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] + search_index]
-                            search_index += 1
+            else:
+                pre_usage = mode_resorces_time[resource_number][index[resource_number] - 1]
+                min_start_time = max(start_time, pre_usage["end"] - resource_usage["start_time"])
 
-                        found = next_usage["start"] >= start_time + resource_usage["start_time"] + resource_usage["duration"]
-
-                    if not found:
+            for resource in mode.resources: # O(Rim*Rl)
+                resource_usage = resource.usage[op_mode]
+                for next_index in range(start_indexs[resource.number], len(mode_resorces_time[resource.number])):
+                    current_usage = mode_resorces_time[resource.number][next_index]
+                    if min_start_time + resource_usage["start_time"] < current_usage["end"]:
                         break
-            # if all resources was placed, return the start time
-            if found:
-                return start_time
 
-            start_time = max(0, self.get_min_start_time(mode_resorces_time, mode, index, op_mode))
+                if current_usage["end"] < min_start_time + resource_usage["start_time"] + resource_usage["duration"] or \
+                        current_usage["begin"] <= min_start_time + resource_usage["start_time"] or \
+                        (current_usage["begin"] > min_start_time + resource_usage["start_time"] and \
+                        current_usage["begin"] < min_start_time + resource_usage["start_time"] + resource_usage["duration"]):
+                    index[resource_number] = min(index[resource_number] + 1, len(mode_resorces_time[resource_number]) - 1)
+                    break
+
+            else:
+                return min_start_time
+
+            # i += 1
+            # if i > 1000:
+            #     input("press any key to continue")
+
+
+
+    # def add_mode_cross_resources(self, start_time, mode_resorces_time, mode, op_mode):
+    #     """
+    #     try add mode with cross resources if neseraly.
+    #     start_time: minimom start time, according to the preferences
+    #     mode_resorces_time: dictionary, the resources usage time
+    #     mode: Mode, mode object
+    #     op_mode: string, "operatin_mode" string
+    #     """
+    #     index = [0] * len(mode_resorces_time)
+    #     # skip all not relevent options - by preferences
+    #     for resource in mode.resources:
+    #         while mode_resorces_time[resource.number][index[int(resource.number) -1]]["end"] <= start_time:
+    #             index[int(resource.number) -1] += 1
+
+    #     while True:
+    #         found = True
+    #         # check all resources
+    #         for resource in mode.resources:
+    #             local_found = False
+    #             # check if the index less the number of resource usage
+    #             # if not, this usage will be added at the end of the resource time
+    #             if index[int(resource.number) -1] < len(mode_resorces_time[resource.number]) - 1:
+    #                 # resource usage data, from the Resource object
+    #                 resource_usage = resource.usage[op_mode]
+    #                 current_usage = mode_resorces_time[resource.number][index[int(resource.number) -1]]
+    #                 next_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] + 1]
+    #                 # if the usage starts before the index usage
+    #                 if len(mode_resorces_time[resource.number]) > 2 and start_time < current_usage["begin"]:
+    #                     search_index = 2
+    #                     pre_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] - 1]
+    #                     while pre_usage["begin"] > start_time and index[int(resource.number) -1] - search_index >= 0:
+    #                         pre_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] - search_index]
+    #                         search_index += 1
+
+    #                     local_found = start_time + resource_usage["start_time"] + resource_usage["duration"] <= pre_usage["end"]
+
+    #                 # if the usage drops on the last usage
+    #                 if not local_found and start_time + resource_usage["start_time"] < current_usage["end"]:
+    #                     local_found = start_time + resource_usage["start_time"] + resource_usage["duration"] <= current_usage["begin"]
+
+    #                 if not local_found:
+    #                     search_index = 2
+    #                     while next_usage["end"] < start_time + resource_usage["start_time"]:
+    #                         next_usage = mode_resorces_time[resource.number][index[int(resource.number) -1] + search_index]
+    #                         search_index += 1
+
+    #                     local_found = next_usage["begin"] >= start_time + resource_usage["start_time"] + resource_usage["duration"]
+
+    #                 if not local_found:
+    #                     found = False
+    #                     break
+    #         # if all resources was placed, return the start time
+    #         if found:
+    #             return start_time
+
+    #         start_time = max(0, self.get_min_start_time(mode_resorces_time, mode, index, op_mode))
 
 
     def calc_adding_mode(self, pre_dur, mode_resorces_time, mode):
@@ -438,14 +604,20 @@ class Job:
         """
         op_mode = "{},{}".format(mode.op_number, mode.mode_number)
         # add the end time of each resource to the list of end time of the preferences
-        pre_dur.append(self.add_mode_cross_resources(max(pre_dur), mode_resorces_time, mode, op_mode))
+        mode_start_time = self.add_mode_cross_resources(max(pre_dur), mode_resorces_time, mode, op_mode)
         # take the biggest end time to start the mode
-        mode_start_time = max(pre_dur)
+        # mode_start_time = max(pre_dur)
         # for each resource in mode, add it start time + duration to the mode start time
         for resource in mode.resources:
             usage = resource.usage[op_mode]
-            mode_resorces_time[resource.number].append({"start": mode_start_time + usage["start_time"], "end": mode_start_time + usage["duration"] + usage["start_time"]})
-            mode_resorces_time[resource.number] = sorted(mode_resorces_time[resource.number], key=lambda usage: usage["start"])
+            new_usage = {"begin": mode_start_time + usage["start_time"], "end": mode_start_time + usage["duration"] + usage["start_time"]} 
+            for index, value in enumerate(mode_resorces_time[resource.number][1:], 1):
+                # Assuming y is in increasing order.
+                if value['begin'] > new_usage['begin']:
+                    mode_resorces_time[resource.number].insert(index, new_usage)
+                    break
+            # mode_resorces_time[resource.number].append({"begin": mode_start_time + usage["start_time"], "end": mode_start_time + usage["duration"] + usage["start_time"]})
+            # mode_resorces_time[resource.number] = sorted(mode_resorces_time[resource.number], key=lambda usage: usage["begin"])
 
         return mode_start_time + mode.tim, mode_resorces_time
 
@@ -508,7 +680,7 @@ class Job:
         # for each resource in mode, add it start time + duration to the mode start time
         for resource in mode.resources:
             usage = resource.usage[op_mode]
-            mode_resorces_time[resource.number] = {"start": mode_start_time, "end": mode_start_time + usage["start_time"] + usage["duration"]}
+            mode_resorces_time[resource.number] = {"begin": mode_start_time, "end": mode_start_time + usage["start_time"] + usage["duration"]}
 
         return mode_start_time + mode.tim, mode_resorces_time
 
@@ -585,7 +757,7 @@ class Job:
         op_end_times = {}
         resorces_time = {}
         for resorce in self.resources.keys():
-            resorces_time[resorce] = [{"start": float("inf"), "end": float("inf")}]
+            resorces_time[resorce] = [{"begin": float("-inf"), "end": 0}, {"begin": float("inf"), "end": float("inf")}]
 
         ub = 0
         for name, operation in self.__sort_operations_by_preferences(sort_function, reverse=reverse).items():
@@ -595,7 +767,7 @@ class Job:
 
         run_time = time.time() - start
         solution_data = "solution in {:.10f} sec\ncreated nodes = 0, max queue size = 0".format(run_time)
-        return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data), "feasibles": 100, "cross_solutions": -1}
+        return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data), "feasibles": 100, "cross_solutions": -1, "cross_best_solution": -1}
 
 
     def __find_UB_greedy_operations(self, less_modes=False):
@@ -608,7 +780,7 @@ class Job:
         op_end_times = {}
         resorces_time = {}
         for resorce in self.resources.keys():
-            resorces_time[resorce] = [{"start": float("inf"), "end": float("inf")}]
+            resorces_time[resorce] = [{"begin": float("-inf"), "end": 0}, {"begin": float("inf"), "end": float("inf")}]
 
         ub = 0
         operations = self.next_operations([])
@@ -625,7 +797,7 @@ class Job:
 
         run_time = time.time() - start
         solution_data = "solution in {:.10f} sec\ncreated nodes = 0, max queue size = 0".format(run_time)
-        return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data), "feasibles": 100, "cross_solutions": -1}
+        return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data), "feasibles": 100, "cross_solutions": -1, "cross_best_solution": -1}
 
 
     def find_UB_ga(self, operations_order, selected_modes, solve_using_cross_solutions=True):
@@ -640,9 +812,9 @@ class Job:
         resorces_time = {}
         for resorce in self.resources.keys():
             if solve_using_cross_solutions:
-                resorces_time[resorce] = [{"start": float("inf"), "end": float("inf")}]
+                resorces_time[resorce] = [{"begin": float("-inf"), "end": 0}, {"begin": float("inf"), "end": float("inf")}]
             else:
-                resorces_time[resorce] = {"start": 0, "end": 0}
+                resorces_time[resorce] = {"begin": 0, "end": 0}
 
         ub = 0
         for operations in operations_order:

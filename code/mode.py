@@ -13,6 +13,7 @@ class Mode:
         self.resources = []
         self.r_tag = None
         self.tim = 0
+        self.sim = 0
 
 
     def add_resource(self, resource, resource_start, resource_dur):
@@ -32,10 +33,10 @@ class Mode:
         every mode have a r' which is the last smallest usage resource
         return: None
         """
-        min = float('inf')
+        min_usage = float('inf')
         for resource in self.resources:
-            if resource.size <= min:
-                min = resource.size
+            if resource.size <= min_usage:
+                min_usage = resource.size
                 self.r_tag = resource
 
 
@@ -45,9 +46,13 @@ class Mode:
         MAX(start_time + duration) of all mode's resources.
         return: None
         """
-        max = 0
+        start_max = 0
+        finish_max = 0
         op_mode = self.op_number + ',' + self.mode_number
         for resource in self.resources:
-            sum = resource.usage[op_mode]["start_time"] + resource.usage[op_mode]["duration"]
-            if sum > max: max = sum
-        self.tim = max
+            end_time = resource.usage[op_mode]["start_time"] + resource.usage[op_mode]["duration"]
+            if end_time > finish_max:
+                finish_max = end_time
+                start_max = resource.usage[op_mode]["start_time"]
+        self.tim = finish_max
+        self.sim = start_max

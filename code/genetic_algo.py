@@ -1,6 +1,18 @@
 import random
 import time
 import csv
+from threading import Timer
+from datetime import datetime
+
+
+class InfeasibleException(Exception):
+    def __init__(self, infeasibles_counter, feasibles_counter, run_time):
+        self.feasibles = feasibles_counter
+        self.infeasibles = infeasibles_counter
+        self.run_time = run_time
+
+    def __str__(self):
+        return str("InfeasibleException:\nafter = {}s, infeasibles_counter = {}, feasibles_counter = {}").format(self.run_time, self.infeasibles, self.feasibles)
 
 class GA:
 
@@ -11,14 +23,17 @@ class GA:
     by the given data, the algorithm try to solve the problem
     """
 
-    def __init__(self, generations = 50, population_size=50, mode_mutation=0.04, data_mutation=0.04, solve_using_cross_solutions=True, check_cross_solution=None):
+    def __init__(self, generations = 38, population_size=16, mode_mutation=0.04, data_mutation=0.04, solve_using_cross_solutions=True, check_cross_solution=None, timeout=None):
         self.generations = generations
         self.population_size = population_size
         self.mode_mutation = mode_mutation
         self.data_mutation = data_mutation
+        self.timeout = timeout
         self.infeasibles_counter = 0
         self.feasibles_counter = 0
         self.cross_solutions = 0
+        self.exit = False
+        self.min_solutions_to_calculate = (generations + 1) * population_size
         self.solve_using_cross_solutions = solve_using_cross_solutions
         if check_cross_solution:
             self.check_cross_solution = check_cross_solution
@@ -28,6 +43,10 @@ class GA:
 
     def check_cross_solution_func(self, foo, bar):
         return False
+
+
+    def raiseTimeout(self):
+        self.exit = True
 
 
     def first_population(self, operations, preferences_function, fitness_function, resources_number=1):
@@ -51,7 +70,7 @@ class GA:
 
 
     def __create_feasible_gen(self, operations, preferences_function, fitness_function, resources_number):
-        while True:
+        while not self.exit:
             modes = []
             data = [[] for i in range(resources_number)]
             # for each operation randomly select mode
@@ -77,8 +96,10 @@ class GA:
 
             else:
                 self.infeasibles_counter += 1
-                if self.infeasibles_counter % 1000000 == 0:
-                    print("infeasibles_counter =", self.infeasibles_counter, "feasibles_counter =", self.feasibles_counter)
+                if self.infeasibles_counter > 10000 and self.feasibles_counter / self.infeasibles_counter < 0.001:
+                    raise InfeasibleException(self.infeasibles_counter, self.feasibles_counter, time.time() - self.start)
+
+        raise InfeasibleException(self.infeasibles_counter, self.feasibles_counter, time.time() - self.start)
 
 
     def __crossover(self, parent_1, parent_2, mode_index, res_index):
@@ -114,7 +135,7 @@ class GA:
         return: 2 dictionary, 2 new sons
         """
         # lattery the cross index, one for the modes and another for the operations
-        max_index = len(parent_1["modes"]) - 2
+        max_index = len(parent_1["modes"]) - 1
         mode_index = random.randint(1, max_index)
         res_index = random.randint(1, max_index)
         # create 2 new sons
@@ -164,63 +185,81 @@ class GA:
         return: dictionary, {"value": best found ub, "generations": number of generations, "time": run time}
         """
         history = []
-        start = time.time()
-        # create first population for the algorithm
-        population, fitness = self.first_population(job.operations, job.next_operations, fitness_function, lines)
-        # calcolate population score by the job fitness function
-        history.append(sum(fitness) / len(fitness))
-        for generation in range(self.generations):
-            # print("generation:", generation)
-            # calcolate the probability of each gen to be selected as parent
-            probability = [1 / item for item in fitness]
-            F = sum(probability)
-            weights = [item / F for item in probability]
-            # create |population_size| new sons
-            sons = []
-            while len(sons) < self.population_size:
-                parent_1, parent_2 = random.choices(population=population, weights=weights, k=2)
-                son_1, son_2 = self.crossover(parent_1, parent_2)
-                son_1 = self.mutation(son_1, job.operations, job.next_operations)
-                son_2 = self.mutation(son_2, job.operations, job.next_operations)
-                solution_1 = fitness_function(son_1["data"], son_1["modes"], self.solve_using_cross_solutions)["value"]
-                if not solution_1:
-                    son_1, solution_1 = self.__create_feasible_gen(job.operations, job.next_operations, fitness_function, lines)
+        self.start = time.time()
+        try:
+            t = Timer(self.timeout, self.raiseTimeout)
+            t.start()
+            # create first population for the algorithm
+            population, fitness = self.first_population(job.operations, job.next_operations, fitness_function, lines)
+            # calcolate population score by the job fitness function
+            history.append(sum(fitness) / len(fitness))
+            for generation in range(self.generations):
+                # calcolate the probability of each gen to be selected as parent
+                probability = [1 / item for item in fitness]
+                F = sum(probability)
+                weights = [item / F for item in probability]
+                # create |population_size| new sons
+                sons = []
+                while len(sons) < self.population_size:
+                    parent_1, parent_2 = random.choices(population=population, weights=weights, k=2)
+                    son_1, son_2 = self.crossover(parent_1, parent_2)
+                    son_1 = self.mutation(son_1, job.operations, job.next_operations)
+                    son_2 = self.mutation(son_2, job.operations, job.next_operations)
+                    solution_1 = fitness_function(son_1["data"], son_1["modes"], self.solve_using_cross_solutions)["value"]
+                    if not solution_1:
+                        son_1, solution_1 = self.__create_feasible_gen(job.operations, job.next_operations, fitness_function, lines)
 
-                solution_2 = fitness_function(son_2["data"], son_2["modes"], self.solve_using_cross_solutions)["value"]
-                if not solution_2:
-                    son_2, solution_2 = self.__create_feasible_gen(job.operations, job.next_operations, fitness_function, lines)
+                    solution_2 = fitness_function(son_2["data"], son_2["modes"], self.solve_using_cross_solutions)["value"]
+                    if not solution_2:
+                        son_2, solution_2 = self.__create_feasible_gen(job.operations, job.next_operations, fitness_function, lines)
 
-                sons.append(son_1)
-                sons.append(son_2)
-                fitness.append(solution_1)
-                fitness.append(solution_2)
+                    sons.append(son_1)
+                    sons.append(son_2)
+                    fitness.append(solution_1)
+                    fitness.append(solution_2)
 
-            population += sons
-            new_population = []
-            new_fitness = []
-            # take the best |population_size| gens from the population
-            for item_from_fitness, item_from_population in sorted(zip(fitness, population), key=lambda pair: pair[0]):
-                new_population.append(item_from_population)
-                new_fitness.append(item_from_fitness)
+                population += sons
+                new_population = []
+                new_fitness = []
+                # take the best |population_size| gens from the population
+                for item_from_fitness, item_from_population in sorted(zip(fitness, population), key=lambda pair: pair[0]):
+                    new_population.append(item_from_population)
+                    new_fitness.append(item_from_fitness)
 
-            population = new_population[:self.population_size]
-            fitness = new_fitness[:self.population_size]
-            history.append(sum(fitness) / float(len(fitness)))
-            # we may stack in local minimom, try to escape by incrise the mutation chance
-            # if fitness[0] == fitness[-1]:
-            #     break
+                population = new_population[:self.population_size]
+                fitness = new_fitness[:self.population_size]
+                history.append(sum(fitness) / float(len(fitness)))
 
-        run_time = time.time() - start
-        with open("ga.csv", "a+") as f:
-            writer = csv.writer(f)
-            writer.writerow(history)
+            run_time = time.time() - self.start
+            with open("ga.csv", "a+") as f:
+                writer = csv.writer(f)
+                writer.writerow(history)
 
-        # return the solution value, number of generations, the taken time and the solution draw data
-        if to_draw:
-            solution_draw_data = fitness_function(population[0]["data"], population[0]["modes"], self.solve_using_cross_solutions)["to_draw"]
-            # modify the solution title to the GA run time
-            solution_draw_data["title"] = "solution in {:.10f} sec\ncreated nodes = 0, max queue size = 0".format(run_time)
-        else:
+            # return the solution value, number of generations, the taken time and the solution draw data
+            if to_draw:
+                solution_draw_data = fitness_function(population[0]["data"], population[0]["modes"], self.solve_using_cross_solutions)["to_draw"]
+                # modify the solution title to the GA run time
+                solution_draw_data["title"] = "solution in {:.10f} sec\ncreated nodes = 0, max queue size = 0".format(run_time)
+            else:
+                solution_draw_data=None
+
+        except InfeasibleException as e:
+            print(e)
+            self.exit = False
             solution_draw_data=None
+            self.check_cross_solution = self.check_cross_solution_func
+            fitness = [float('inf')]
+            population = [{"modes": -1, "data": -1}]
+            generation = -1
+            if self.feasibles_counter != 0:
+                run_time =  (time.time() - self.start) / self.feasibles_counter * self.min_solutions_to_calculate
+            else:
+                run_time = (time.time() - self.start) * self.min_solutions_to_calculate
+
+        finally:
+            t.cancel()
+
+        print("GA solve end at {}".format(time.strftime("%H:%M:%S", time.localtime())))
+        cross_best_solution = self.check_cross_solution(population[0]["data"], population[0]["modes"])
         feasibles = (self.feasibles_counter / (self.feasibles_counter + self.infeasibles_counter)) * 100
-        return {"value": fitness[0], "generations": generation, "time": run_time, "to_draw": solution_draw_data, "feasibles": feasibles, "cross_solutions": self.cross_solutions}
+        return {"value": fitness[0], "generations": generation, "time": run_time, "to_draw": solution_draw_data, "feasibles": feasibles, "cross_solutions": self.cross_solutions, "cross_best_solution": cross_best_solution}
