@@ -23,22 +23,38 @@ class GA:
     by the given data, the algorithm try to solve the problem
     """
 
-    def __init__(self, generations = 38, population_size=16, mode_mutation=0.04, data_mutation=0.04, solve_using_cross_solutions=True, check_cross_solution=None, timeout=None):
+    def __init__(self, generations = 50, population_size=16, mode_mutation=0.04, data_mutation=0.04, solve_using_cross_solutions=True, check_cross_solution=None, timeout=None, multi_times=False, changed_mutation=False, ageing=False, complex_ageing=False):
         self.generations = generations
         self.population_size = population_size
-        self.mode_mutation = mode_mutation
-        self.data_mutation = data_mutation
+        self.mode_mutation = self.base_mode_mutation = mode_mutation
+        self.data_mutation = self.base_data_mutation = data_mutation
         self.timeout = timeout
+        self.multi_times = multi_times
+        self.changed_mutation = changed_mutation
+        self.ageing = ageing
         self.infeasibles_counter = 0
         self.feasibles_counter = 0
         self.cross_solutions = 0
         self.exit = False
+        if ageing:
+            self.next_generation = self.next_generation_ageing_func
+            if complex_ageing:
+                self.calc_ageing = self.complex_ageing_function
+            else:
+                self.calc_ageing = self.ageing_function
+        else:
+            self.next_generation = self.next_generation_func
         self.min_solutions_to_calculate = (generations + 1) * population_size
         self.solve_using_cross_solutions = solve_using_cross_solutions
         if check_cross_solution:
             self.check_cross_solution = check_cross_solution
         else:
             self.check_cross_solution = self.check_cross_solution_func
+
+
+    def reset_ga_params(self):
+        self.mode_mutation = self.base_mode_mutation
+        self.data_mutation = self.base_data_mutation
 
 
     def check_cross_solution_func(self, foo, bar):
@@ -144,39 +160,132 @@ class GA:
         return son_1, son_2
 
 
-    def mutation(self, son, operations, preferences_function):
+    def mutation_process(self, son, operations, preferences_function):
+        if self.multi_times:
+            mode_mutation = self.mode_mutation
+            data_mutation = self.data_mutation
+            while random.random() <= mode_mutation:
+                son = self.mode_mutation_process(son, operations)
+                mode_mutation /= 2
+
+            while random.random() <= data_mutation:
+                son = self.data_mutation_process(son, preferences_function)
+                data_mutation /= 2
+            
+        else:
+            # if the lottery number less then the motation chance, do the modes motation
+            if random.random() <= self.mode_mutation:
+                son = self.mode_mutation_process(son, operations)
+
+            # if the lottery number less then the motation chance, do the operations motation
+            if random.random() <= self.data_mutation:
+                son = self.data_mutation_process(son, preferences_function)
+
+        return son
+
+
+    def mode_mutation_process(self, son, operations):
         """
         do motation on the new son.
         son: dictionary, son's data
         operations: list of Operation, all operation data
+        return: dictionary, the son after the motation, if was
+        """
+        # lottery an operation on which we will do the motation
+        op = random.randint(0, len(operations) - 1)
+        operation = operations[str(op + 1)]
+        # lottery the operation new mode
+        mode = random.randint(1, len(operation.modes))
+        # if the operation have more the one mode, lottery while not choisen new mode
+        while len(operation.modes) > 1 and mode == son["modes"][op]:
+            mode = random.randint(1, len(operation.modes))
+
+        son["modes"][op] = mode
+        return son
+
+
+    def data_mutation_process(self, son, preferences_function):
+        """
+        do motation on the new son.
+        son: dictionary, son's data
         preferences_function: function, according to this function the gen created
         return: dictionary, the son after the motation, if was
         """
-        # if the lottery number less then the motation chance, do the modes motation
-        if random.random() <= self.mode_mutation:
-            # lottery an operation on which we will do the motation
-            op = random.randint(0, len(operations) - 1)
-            operation = operations[str(op + 1)]
-            # lottery the operation new mode
-            mode = random.randint(1, len(operation.modes))
-            # if the operation have more the one mode, lottery while not choisen new mode
-            while len(operation.modes) > 1 and mode == son["modes"][op]:
-                mode = random.randint(1, len(operation.modes))
-
-            son["modes"][op] = mode
-
-        # if the lottery number less then the motation chance, do the operations motation
-        if random.random() <= self.data_mutation:
-            resource_number = random.randint(0, len(son["data"]) - 1)
-            # lottery an operation on which we will do the motation
-            index = random.randint(1, len(son["data"][0]) - 1)
-            # precede the choisen operation, only if its possible according to the preferences
-            for i in range(index):
-                if son["data"][resource_number][index] in preferences_function(son["data"][resource_number][:i]):
-                    son["data"][resource_number].insert(i, son["data"][resource_number].pop(index))
+        resource_number = random.randint(0, len(son["data"]) - 1)
+        # lottery an operation on which we will do the motation
+        index = random.randint(1, len(son["data"][0]) - 1)
+        # precede the choisen operation, only if its possible according to the preferences
+        for i in range(index):
+            if son["data"][resource_number][index] in preferences_function(son["data"][resource_number][:i]):
+                son["data"][resource_number].insert(i, son["data"][resource_number].pop(index))
 
         return son
 
+
+    # def mutation(self, son, operations, preferences_function):
+    #     """
+    #     do motation on the new son.
+    #     son: dictionary, son's data
+    #     operations: list of Operation, all operation data
+    #     preferences_function: function, according to this function the gen created
+    #     return: dictionary, the son after the motation, if was
+    #     """
+    #     # if the lottery number less then the motation chance, do the modes motation
+    #     if random.random() <= self.mode_mutation:
+    #         # lottery an operation on which we will do the motation
+    #         op = random.randint(0, len(operations) - 1)
+    #         operation = operations[str(op + 1)]
+    #         # lottery the operation new mode
+    #         mode = random.randint(1, len(operation.modes))
+    #         # if the operation have more the one mode, lottery while not choisen new mode
+    #         while len(operation.modes) > 1 and mode == son["modes"][op]:
+    #             mode = random.randint(1, len(operation.modes))
+
+    #         son["modes"][op] = mode
+
+    #     # if the lottery number less then the motation chance, do the operations motation
+    #     if random.random() <= self.data_mutation:
+    #         resource_number = random.randint(0, len(son["data"]) - 1)
+    #         # lottery an operation on which we will do the motation
+    #         index = random.randint(1, len(son["data"][0]) - 1)
+    #         # precede the choisen operation, only if its possible according to the preferences
+    #         for i in range(index):
+    #             if son["data"][resource_number][index] in preferences_function(son["data"][resource_number][:i]):
+    #                 son["data"][resource_number].insert(i, son["data"][resource_number].pop(index))
+
+    #     return son
+
+    def complex_ageing_function(self, x):
+        return abs(x-2) - 2
+
+
+    def ageing_function(self, x):
+        return x
+
+
+    def next_generation_ageing_func(self, population, fitness, ageing):
+        new_population = []
+        new_fitness = []
+        new_ageing = []
+        # take the best |population_size| gens from the population
+        for item_from_fitness, item_from_population, item_from_ageing in sorted(zip(fitness, population, ageing), key=lambda pair: pair[0]):
+            new_population.append(item_from_population)
+            new_fitness.append(item_from_fitness)
+            new_ageing.append(item_from_ageing + 1)
+
+        return new_population[:self.population_size], new_fitness[:self.population_size], new_ageing[:self.population_size]
+
+
+    def next_generation_func(self, population, fitness):
+        new_population = []
+        new_fitness = []
+        # take the best |population_size| gens from the population
+        for item_from_fitness, item_from_population in sorted(zip(fitness, population), key=lambda pair: pair[0]):
+            new_population.append(item_from_population)
+            new_fitness.append(item_from_fitness)
+
+        return new_population[:self.population_size], new_fitness[:self.population_size]
+        
 
     def solve(self, job, fitness_function, lines=1, to_draw=None):
         """
@@ -185,17 +294,28 @@ class GA:
         return: dictionary, {"value": best found ub, "generations": number of generations, "time": run time}
         """
         history = []
+        self.exit = False
+        self.reset_ga_params()
         self.start = time.time()
         try:
             t = Timer(self.timeout, self.raiseTimeout)
             t.start()
             # create first population for the algorithm
             population, fitness = self.first_population(job.operations, job.next_operations, fitness_function, lines)
+            if self.ageing:
+                base_ageing = [-1] * self.population_size
+                ageing = [0] * self.population_size
             # calcolate population score by the job fitness function
-            history.append(sum(fitness) / len(fitness))
+            # history.append(sum(fitness) / len(fitness))
+            history.append(fitness[0])
             for generation in range(self.generations):
                 # calcolate the probability of each gen to be selected as parent
-                probability = [1 / item for item in fitness]
+                if self.ageing:
+                    ageing_fitness = [f + (f * self.calc_ageing(a) / 10)  for f,a in zip(fitness, ageing)]
+                    probability = [1 / item for item in ageing_fitness]
+                else:
+                    probability = [1 / item for item in fitness]
+
                 F = sum(probability)
                 weights = [item / F for item in probability]
                 # create |population_size| new sons
@@ -203,8 +323,8 @@ class GA:
                 while len(sons) < self.population_size:
                     parent_1, parent_2 = random.choices(population=population, weights=weights, k=2)
                     son_1, son_2 = self.crossover(parent_1, parent_2)
-                    son_1 = self.mutation(son_1, job.operations, job.next_operations)
-                    son_2 = self.mutation(son_2, job.operations, job.next_operations)
+                    son_1 = self.mutation_process(son_1, job.operations, job.next_operations)
+                    son_2 = self.mutation_process(son_2, job.operations, job.next_operations)
                     solution_1 = fitness_function(son_1["data"], son_1["modes"], self.solve_using_cross_solutions)["value"]
                     if not solution_1:
                         son_1, solution_1 = self.__create_feasible_gen(job.operations, job.next_operations, fitness_function, lines)
@@ -219,16 +339,22 @@ class GA:
                     fitness.append(solution_2)
 
                 population += sons
-                new_population = []
-                new_fitness = []
-                # take the best |population_size| gens from the population
-                for item_from_fitness, item_from_population in sorted(zip(fitness, population), key=lambda pair: pair[0]):
-                    new_population.append(item_from_population)
-                    new_fitness.append(item_from_fitness)
 
-                population = new_population[:self.population_size]
-                fitness = new_fitness[:self.population_size]
-                history.append(sum(fitness) / float(len(fitness)))
+                if self.ageing:
+                    ageing += base_ageing
+                    population, fitness, ageing = self.next_generation(population, fitness, ageing)
+                else:
+                    population, fitness = self.next_generation(population, fitness)
+
+                if self.changed_mutation:
+                    if fitness[0] == fitness[int(len(fitness) / 2)]:
+                        self.mode_mutation *= 2
+                        self.data_mutation *= 2
+                    else:
+                        self.mode_mutation = max(self.base_mode_mutation, self.mode_mutation / 2)
+                        self.data_mutation = max(self.base_data_mutation, self.data_mutation / 2)
+                # history.append(sum(fitness) / float(len(fitness)))
+                history.append(fitness[0])
 
             run_time = time.time() - self.start
             with open("ga.csv", "a+") as f:
@@ -245,7 +371,6 @@ class GA:
 
         except InfeasibleException as e:
             print(e)
-            self.exit = False
             solution_draw_data=None
             self.check_cross_solution = self.check_cross_solution_func
             fitness = [float('inf')]
@@ -262,4 +387,7 @@ class GA:
         print("GA solve end at {}".format(time.strftime("%H:%M:%S", time.localtime())))
         cross_best_solution = self.check_cross_solution(population[0]["data"], population[0]["modes"])
         feasibles = (self.feasibles_counter / (self.feasibles_counter + self.infeasibles_counter)) * 100
-        return {"value": fitness[0], "generations": generation, "time": run_time, "to_draw": solution_draw_data, "feasibles": feasibles, "cross_solutions": self.cross_solutions, "cross_best_solution": cross_best_solution}
+        return {"value": fitness[0], "generations": generation, 
+                "time": run_time, "to_draw": solution_draw_data, 
+                "feasibles": feasibles, "cross_solutions": self.cross_solutions, 
+                "cross_best_solution": cross_best_solution}

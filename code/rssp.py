@@ -108,11 +108,11 @@ def draw_rectangle(start_y, end_y, value, width=2, text=""):
 
 
 def solve_problem(args):
-    job = Job(args.problem_number, cplex_solution=args.solution_type == "cplex", ub=args.ub, sort_x=args.sort_x, 
-        reverse=args.sort_x and args.reverse ,repeate=args.repeate, create_csv=args.output_to_csv, timeout=args.timeout)
+    job = Job(args.problem_number, cplex_solution=args.solution_type, ub=args.ub, sort_x=args.sort_x, reverse=args.sort_x and args.reverse, repeate=args.repeate, create_csv=args.output_to_csv, 
+        timeout=args.timeout, mutation_chance=args.mutation_chance, changed_mutation=args.changed_mutation, ageing=args.ageing, complex_ageing=args.complex_ageing)
     print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB, "\nLB =", job.LB)
     start = time.time()
-    if job.UB == job.LB or args.solution_type == "none":
+    if job.UB == job.LB or args.solution_type == "None":
         print("LB = UB")
         if args.graph_solution:
             draw_collected_data(job.draw_UB["operations"], job.draw_UB["title"], job.draw_UB["choices_modes"])
@@ -171,7 +171,7 @@ def arguments_parser():
         help='run 4 GA or/and 4 different greedy algorithm to calculate problems UB')
     parser.add_argument('-p', '--problem_number', type=check_problem_number, required=True,
         help='the wanted problems number to be solved. for range of problems use "-". to solve multi ranges seperate them by ",". exsample: "1-10, 15, 16, 18-21"')
-    parser.add_argument('-c', '--solution_type', choices=['cplex', 'b&b', 'none'],
+    parser.add_argument('-s', '--solution_type', choices=['cplex', 'b&b', 'None'],
         help='use cplex librarys for full MILP solution')
     parser.add_argument('-l', '--init_resource_by_labels', action='store_true',
         help='try initialze every resources lables one by one')
@@ -186,6 +186,14 @@ def arguments_parser():
     parser.add_argument('-o', "--output_to_csv", action='store_true',
         help='for every selected problem run all 16 options')
     parser.add_argument('-t', "--timeout", type=int,
+        help='for every selected problem run all 16 options')
+    parser.add_argument('-m', "--mutation_chance", type=float, default=0.04,
+        help='for every selected problem run all 16 options')
+    parser.add_argument('-c', "--changed_mutation", action='store_true',
+        help='for every selected problem run all 16 options')
+    parser.add_argument("--ageing", action='store_true',
+        help='for every selected problem run all 16 options')
+    parser.add_argument("--complex_ageing", action='store_true',
         help='for every selected problem run all 16 options')
     subparsers = parser.add_subparsers(dest='sort_x',
         help='sort xi,m,r,l')
@@ -210,7 +218,7 @@ def main():
         titles = []
         if args.ub:
             if args.ub == "greedy" or args.ub == "both":
-                titles += ["greedy_{}".format(i) for i in range(1,5)]
+                titles += ["greedy_{}".format(i) for i in range(1,6)]
 
             if args.ub.startswith("ga") or args.ub == "both":
                 titles += ["GA_{}".format(i) for i in range(1,11)]

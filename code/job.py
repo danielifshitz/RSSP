@@ -16,7 +16,7 @@ class Job:
     this class read problems from the database, calculate the UB and LB and create equations.
     """
 
-    def __init__(self, problem_id, cplex_solution=False, ub=None, sort_x=None, reverse=False, repeate=1, create_csv=False, timeout=None):
+    def __init__(self, problem_id, cplex_solution=None, ub=None, sort_x=None, reverse=False, repeate=1, create_csv=False, timeout=None, mutation_chance=0.04, multi_times=False, changed_mutation=False, ageing=False, complex_ageing=False):
         self.N = 1e4
         self.resources = {}
         self.operations = {}
@@ -51,6 +51,8 @@ class Job:
             self.UBs["operations"] = self.__find_UB_greedy_operations()
             self.UBs["preferences"] = self.__find_UB_greedy(self.__sort_operations_by_pref_len, reverse=True)
             self.UBs["preferences_mode"] = self.__find_UB_greedy_operations(less_modes=True)
+            self.UBs["greedy_start"] = self.__find_UB_greedy_greedy()
+
         if ub and (ub.startswith("ga") or ub == "both"):
             if ub == "ga_multi_lines":
                 fitness_function = self.add_resources_to_bellman_ford_graph
@@ -71,7 +73,7 @@ class Job:
                 solve_using_cross_solutions=True
                 check_cross_solution=None
 
-            ga = GA(solve_using_cross_solutions=solve_using_cross_solutions, check_cross_solution=check_cross_solution, timeout=timeout)
+            ga = GA(mode_mutation=mutation_chance, data_mutation=mutation_chance, solve_using_cross_solutions=solve_using_cross_solutions, check_cross_solution=check_cross_solution, timeout=timeout, multi_times=multi_times, changed_mutation=changed_mutation, ageing=ageing, complex_ageing=complex_ageing)
             self.UBs.update({"ga_{}".format(i): ga.solve(self, fitness_function, lines, to_draw) for i in range(1, 11)})
 
 
@@ -82,7 +84,7 @@ class Job:
                 self.draw_UB = solution["to_draw"]
 
         # if the LB = UB, equations are unnecessary
-        if self.UB != self.LB:
+        if self.UB != self.LB  and cplex_solution != 'None':
             if sort_x == "pre":
                 self.operations = self.__sort_operations_by_preferences(self.__sort_operations_by_pref, reverse)
                 self.create_x_i_m_r_l()
@@ -91,7 +93,7 @@ class Job:
             else:
                 self.create_x_i_m_r_l()
 
-            self.__init_cplex_variable_parameters(cplex_solution)
+            self.__init_cplex_variable_parameters(cplex_solution == "cplex")
             self.__create_equations()
 
 
@@ -768,6 +770,49 @@ class Job:
         run_time = time.time() - start
         solution_data = "solution in {:.10f} sec\ncreated nodes = 0, max queue size = 0".format(run_time)
         return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data), "feasibles": 100, "cross_solutions": -1, "cross_best_solution": -1}
+
+    
+    def __find_UB_greedy_greedy(self):
+        """
+        find UB using greedy function.
+        less_modes: boolean, if true, we will sort by operation modes number
+        return dictionary, found UB , how much time its took and draw data
+        """
+        start = time.time()
+
+        operations = self.next_operations([])
+        operations = [self.operations[op] for op in operations]
+        start_points = []
+        for operation in operations:
+            for mode in operation.modes:
+                start_points.append({"operation": [operation.number], "mode": mode.mode_number})
+        
+        # try all avialable operation according to the preferences
+        best_ub = float("inf")
+        best_op_end_times = {}
+        for start_point in start_points:
+            ub = 0
+            op_end_times = {}
+            resorces_time = {}
+            for resorce in self.resources.keys():
+                resorces_time[resorce] = [{"begin": float("-inf"), "end": 0}, {"begin": float("inf"), "end": float("inf")}]
+            operations = start_point["operation"]
+            mode = start_point["mode"]
+            while operations:
+                operations = {op: self.operations[op] for op in operations}
+                resorces_time, min_time_mode, choisen_operation, best_mode = self.calc_adding_operations(operations, op_end_times, resorces_time.copy(), selected_mode=mode)
+                ub = max(ub, min_time_mode)
+                op_end_times[choisen_operation] = {"mode": best_mode, "end_time": min_time_mode}
+                operations = self.next_operations(op_end_times.keys())
+                mode = None
+
+            if ub < best_ub:
+                best_ub = ub
+                best_op_end_times = op_end_times
+
+        run_time = time.time() - start
+        solution_data = "solution in {:.10f} sec\ncreated nodes = 0, max queue size = 0".format(run_time)
+        return {"value": best_ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(best_op_end_times, solution_data), "feasibles": 100, "cross_solutions": -1, "cross_best_solution": -1}
 
 
     def __find_UB_greedy_operations(self, less_modes=False):

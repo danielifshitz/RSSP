@@ -2,6 +2,7 @@ import csv
 import argparse
 import random
 import os
+import itertools
 
 
 def arguments_parser():
@@ -11,10 +12,64 @@ def arguments_parser():
     parser.add_argument("-r", "--repeate", type=int, default=1)
     parser.add_argument("-c", "--change_chances", action='store_true')
     parser.add_argument("-t", "--four_types", action='store_true')
+    parser.add_argument("-n", "--new_types", action='store_true')
     return parser.parse_args()
 
 
-def create_problem_2(pid, min_res=4, max_res=5, resources_chance=[0, 0, 0, 0]):
+def random_int(f, t):
+    return random.randint(int(f), int(t))
+
+
+def create_problem_3(pid, params):
+    # keys = ["resources", "operations", "modes", "rim", "precedences", "spaciouslity"]
+    line = {}
+    with open(str(pid) + ".csv", 'w') as csvfile:
+        fieldnames = ['Problem_ID', 'Oper_ID', "Mode_ID", "Res_ID", "Ts", "Tf", "Pre_Oper_ID"]
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, lineterminator = '\n')
+        writer.writeheader()
+        r = params["resources"].split("-")
+        resources = random_int(r[0], r[1])
+        o = params["operations"].split("-")
+        operations = random_int(o[0], o[1])
+        modes_range = params["modes"].split("-")
+        rim_range = params["rim"].split("-")
+        rim_range = [ max(1, round(resources * int(rim) / 100)) for rim in rim_range]
+        precedences_range = params["precedences"].split("-")
+        spaciouslity_range = params["spaciouslity"].split("-")
+        pre_op = ""
+        line["Problem_ID"] = pid
+        for operation in range(1, operations + 1):
+            line["Oper_ID"] = operation
+            line["Pre_Oper_ID"] = pre_op
+            modes = random_int(modes_range[0], modes_range[1])
+            for mode in range(1, modes + 1):
+                line["Mode_ID"] = mode
+                used_resources_len = random_int(rim_range[0], rim_range[1])
+                used_resources = random.sample(range(1, resources + 1), used_resources_len)
+                start_time = 0
+                mode_duration = random.randint(200, 400)
+                resource_duration = round(mode_duration / used_resources_len)
+                for i, resource in enumerate(used_resources, start=1):
+                    end_time = i * resource_duration
+                    line["Res_ID"] = resource
+                    line["Ts"] = start_time
+                    line["Tf"] = end_time
+                    writer.writerow(line)
+
+                    r_spaciouslity = random_int(spaciouslity_range[0], spaciouslity_range[1])
+                    start_time = end_time - resource_duration + round(resource_duration * r_spaciouslity / 100)
+                    
+            op_options = [str(op) for op in range(operation + 1)]
+            op_weights = [int(operations / (operation + 2 - op)) for op in range(operation + 1)]
+            num_of_pre_ops = random_int(precedences_range[0], precedences_range[1])
+            ops = set(random.choices(op_options, op_weights, k=num_of_pre_ops))
+            if "0" in ops:
+                pre_op = ""
+            else:
+                pre_op = ";".join(ops)
+                    
+
+def create_problem_2(pid, min_res=4, max_res=20, resources_chance=[0, 0, 0, 0]):
     line = {}
     with open(str(pid) + ".csv", 'w') as csvfile:
         fieldnames = ['Problem_ID', 'Oper_ID', "Mode_ID", "Res_ID", "Ts", "Tf", "Pre_Oper_ID"]
@@ -51,7 +106,7 @@ def create_problem_2(pid, min_res=4, max_res=5, resources_chance=[0, 0, 0, 0]):
                     end_time = start_time + random.randint(100, 400)
 
             op_options = [str(op) for op in range(operation + 1)]
-            op_weights = [int(100 / (operation + 1 - op))for op in range(operation + 1)]
+            op_weights = [int(100 / (operation + 1 - op)) for op in range(operation + 1)]
             num_of_pre_ops = random.randint(1, max(2, int(operation / 3)))
             ops = set(random.choices(op_options, op_weights, k=num_of_pre_ops))
             if "0" in ops:
@@ -164,64 +219,90 @@ def main():
             #[25, 25, 25, 25]
         ]
         tim_chances = [[]]
+    elif args.new_types:
+        keys = ["resources", "operations", "modes", "rim", "precedences", "spaciouslity"]
+        values = [["3-9", "10-19"],
+                  ["10-50", "51-100"],
+                  ["1-4", "5-10"],
+                  ["1-50", "51-100"],
+                  ["3-10", "0-2"],
+                  ["0-99", "100-199"]]
     else:
         resources_chances = [[40, 20, 40]]
         tim_chances = [[50, 40, 10]]
     
-    for r_chance in resources_chances:
-        for tim_chance in tim_chances:
-            for _ in range(args.repeate):
-                if args.pid and tim_chance:
-                    create_problem(args.pid, resources_chance=r_chance, tim_chance=tim_chance)
-                    csv_file = str(args.pid) + ".csv"
-                elif args.pid:
-                    create_problem_2(args.pid, resources_chance=r_chance)
-                    csv_file = str(args.pid) + ".csv"
-                else:
-                    csv_file = args.csv_file
-                csv_reader = open(csv_file, mode='r')
-                csv_dict = csv.DictReader(csv_reader)
-                first_line = next(csv_dict)
-                f.write("sql_{} = 'insert into OpMoRe values ".format(first_line["Problem_ID"]))
-                f.write("({},{},{},{},{:.2f},{:.2f})".format(first_line["Problem_ID"], first_line["Oper_ID"], first_line["Mode_ID"], first_line["Res_ID"], float(first_line["Ts"]), float(first_line["Tf"])))
-                for line in csv_dict:
-                    f.write(",({},{},{},{},{:.2f},{:.2f})".format(line["Problem_ID"], line["Oper_ID"], line["Mode_ID"], line["Res_ID"], float(line["Ts"]), float(line["Tf"])))
-
-                f.write("'\nc.execute(sql_{})\n".format(first_line["Problem_ID"]))
-                csv_reader.close()
-                csv_reader = open(csv_file, mode='r')
-                csv_dict = csv.DictReader(csv_reader)
-                first_line = next(csv_dict)
-                f.write("sql_{} = 'insert into Priority values ".format(first_line["Problem_ID"]))
-                pre_op = list(first_line["Pre_Oper_ID"].split(";"))
-                first_line_pre_op = False
-                if pre_op[0]:
-                    operations = [first_line["Problem_ID"]]
-                    first_line_pre_op = True
-                    for op in pre_op:
-                        f.write("({},{},{})".format(first_line["Problem_ID"], op, first_line["Oper_ID"]))
-
-                else:
-                    operations = []
-
-                for line in csv_dict:
-                    if line["Oper_ID"] not in operations:
-                        pre_op = list(line["Pre_Oper_ID"].split(";"))
-                        if pre_op[0]:
-                            operations.append(line["Oper_ID"])
-                            for op in pre_op:
-                                if first_line_pre_op:
-                                    f.write(",({},{},{})".format(line["Problem_ID"], op, line["Oper_ID"]))
-                                else:
-                                    f.write("({},{},{})".format(line["Problem_ID"], op, line["Oper_ID"]))
-                                    first_line_pre_op = True
-
-                f.write("'\nc.execute(sql_{})\n".format(first_line["Problem_ID"]))
-                csv_reader.close()
+    if args.pid and args.new_types:
+        all_options = list(itertools.product(*values))
+        for _ in range(args.repeate):
+            for option in all_options:
+                param = dict(zip(keys, option))
+                create_problem_3(args.pid, param)
+                csv_file = str(args.pid) + ".csv"
+                save_in_csv_file(csv_file, f)
                 if args.pid:
                     os.remove(csv_file)
                     args.pid += 1
+
+    else:
+        for r_chance in resources_chances:
+            for tim_chance in tim_chances:
+                for _ in range(args.repeate):
+                    if args.pid and tim_chance:
+                        create_problem(args.pid, resources_chance=r_chance, tim_chance=tim_chance)
+                        csv_file = str(args.pid) + ".csv"
+                    elif args.pid:
+                        create_problem_2(args.pid, resources_chance=r_chance)
+                        csv_file = str(args.pid) + ".csv"
+                    else:
+                        csv_file = args.csv_file
+
+                    save_in_csv_file(csv_file, f)
+                    if args.pid:
+                        os.remove(csv_file)
+                        args.pid += 1
     f.close()
+
+
+def save_in_csv_file(csv_file, f):
+    csv_reader = open(csv_file, mode='r')
+    csv_dict = csv.DictReader(csv_reader)
+    first_line = next(csv_dict)
+    f.write("sql_{} = 'insert into OpMoRe values ".format(first_line["Problem_ID"]))
+    f.write("({},{},{},{},{:.2f},{:.2f})".format(first_line["Problem_ID"], first_line["Oper_ID"], first_line["Mode_ID"], first_line["Res_ID"], float(first_line["Ts"]), float(first_line["Tf"])))
+    for line in csv_dict:
+        f.write(",({},{},{},{},{:.2f},{:.2f})".format(line["Problem_ID"], line["Oper_ID"], line["Mode_ID"], line["Res_ID"], float(line["Ts"]), float(line["Tf"])))
+
+    f.write("'\nc.execute(sql_{})\n".format(first_line["Problem_ID"]))
+    csv_reader.close()
+    csv_reader = open(csv_file, mode='r')
+    csv_dict = csv.DictReader(csv_reader)
+    first_line = next(csv_dict)
+    f.write("sql_{} = 'insert into Priority values ".format(first_line["Problem_ID"]))
+    pre_op = list(first_line["Pre_Oper_ID"].split(";"))
+    first_line_pre_op = False
+    if pre_op[0]:
+        operations = [first_line["Problem_ID"]]
+        first_line_pre_op = True
+        for op in pre_op:
+            f.write("({},{},{})".format(first_line["Problem_ID"], op, first_line["Oper_ID"]))
+
+    else:
+        operations = []
+
+    for line in csv_dict:
+        if line["Oper_ID"] not in operations:
+            pre_op = list(line["Pre_Oper_ID"].split(";"))
+            if pre_op[0]:
+                operations.append(line["Oper_ID"])
+                for op in pre_op:
+                    if first_line_pre_op:
+                        f.write(",({},{},{})".format(line["Problem_ID"], op, line["Oper_ID"]))
+                    else:
+                        f.write("({},{},{})".format(line["Problem_ID"], op, line["Oper_ID"]))
+                        first_line_pre_op = True
+
+    f.write("'\nc.execute(sql_{})\n".format(first_line["Problem_ID"]))
+    csv_reader.close()
 
 
 if __name__ == '__main__':
