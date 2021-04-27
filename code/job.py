@@ -18,6 +18,7 @@ class Job:
 
     def __init__(self, problem_id, cplex_solution=None, ub=None, sort_x=None, reverse=False, repeate=1, create_csv=False, timeout=None, mutation_chance=0.04, multi_times=False, changed_mutation=False, ageing=False, complex_ageing=False):
         self.N = 1e4
+        self.problem_id = problem_id
         self.resources = {}
         self.operations = {}
         self.preferences = {}
@@ -46,35 +47,51 @@ class Job:
         self.LB = bf_graph.bellman_ford_LB(0, len(self.operations) + 1)
         self.UB = float("inf")
         self.UBs = {}
-        if ub == "greedy" or ub == "both":
-            self.UBs["mode"] = self.__find_UB_greedy(self.__sort_operations_by_pref)
-            self.UBs["operations"] = self.__find_UB_greedy_operations()
-            self.UBs["preferences"] = self.__find_UB_greedy(self.__sort_operations_by_pref_len, reverse=True)
-            self.UBs["preferences_mode"] = self.__find_UB_greedy_operations(less_modes=True)
-            self.UBs["greedy_start"] = self.__find_UB_greedy_greedy()
+        for_gas = []
+        if ub and (ub == "greedy" or ub.startswith("both")):
+            self.UBs["mode"], for_ga = self.__find_UB_greedy(self.__sort_operations_by_pref)
+            for_gas.append(for_ga)
+            self.UBs["operations"], for_ga = self.__find_UB_greedy_operations()
+            for_gas.append(for_ga)
+            self.UBs["preferences"], for_ga = self.__find_UB_greedy(self.__sort_operations_by_pref_len, reverse=True)
+            for_gas.append(for_ga)
+            self.UBs["preferences_mode"], for_ga = self.__find_UB_greedy_operations(less_modes=True)
+            for_gas.append(for_ga)
+            # self.UBs["greedy_start"] = self.__find_UB_greedy_greedy()
+            # for_gas.append(for_ga)
 
-        if ub and (ub.startswith("ga") or ub == "both"):
+        if ub and (ub.startswith("ga") or ub.startswith("both")):
             if ub == "ga_multi_lines":
                 fitness_function = self.add_resources_to_bellman_ford_graph
                 lines = len(self.resources)
                 to_draw = False
-                solve_using_cross_solutions=True
-                check_cross_solution=self.check_cross_solution
+                solve_using_cross_solutions = True
+                check_cross_solution = self.check_cross_solution
+                solve_both = ""
             elif ub == "ga_one_line":
                 fitness_function = self.find_UB_ga
                 lines = 1
                 to_draw = False
-                solve_using_cross_solutions=False
-                check_cross_solution=None
+                solve_using_cross_solutions = False
+                check_cross_solution = True
+                solve_both = ""
+            elif ub == "both_ga":
+                fitness_function = self.find_UB_ga
+                lines = 1
+                to_draw = False
+                solve_using_cross_solutions = False
+                check_cross_solution = True
+                solve_both = "one"
             else:
                 fitness_function = self.find_UB_ga
                 lines = 1
                 to_draw = True
-                solve_using_cross_solutions=True
-                check_cross_solution=None
+                solve_using_cross_solutions = True
+                check_cross_solution = True
+                solve_both = ""
 
-            ga = GA(mode_mutation=mutation_chance, data_mutation=mutation_chance, solve_using_cross_solutions=solve_using_cross_solutions, check_cross_solution=check_cross_solution, timeout=timeout, multi_times=multi_times, changed_mutation=changed_mutation, ageing=ageing, complex_ageing=complex_ageing)
-            self.UBs.update({"ga_{}".format(i): ga.solve(self, fitness_function, lines, to_draw) for i in range(1, 11)})
+            ga = GA(mode_mutation=mutation_chance, data_mutation=mutation_chance, check_cross_solution=check_cross_solution, timeout=timeout, multi_times=multi_times, changed_mutation=changed_mutation, ageing=ageing, complex_ageing=complex_ageing)
+            self.UBs.update({"ga_{}".format(i): ga.solve(self, i, fitness_function, solve_using_cross_solutions, lines, to_draw, for_gas, solve_both) for i in range(10)})
 
 
         self.draw_UB = None
@@ -612,7 +629,7 @@ class Job:
         # for each resource in mode, add it start time + duration to the mode start time
         for resource in mode.resources:
             usage = resource.usage[op_mode]
-            new_usage = {"begin": mode_start_time + usage["start_time"], "end": mode_start_time + usage["duration"] + usage["start_time"]} 
+            new_usage = {"begin": mode_start_time + usage["start_time"], "end": mode_start_time + usage["duration"] + usage["start_time"], "operation": mode.op_number} 
             for index, value in enumerate(mode_resorces_time[resource.number][1:], 1):
                 # Assuming y is in increasing order.
                 if value['begin'] > new_usage['begin']:
@@ -756,22 +773,29 @@ class Job:
         return dictionary, found UB , how much time its took and draw data
         """
         start = time.time()
+        for_ga = {"modes": [], "data": []}
         op_end_times = {}
         resorces_time = {}
         for resorce in self.resources.keys():
-            resorces_time[resorce] = [{"begin": float("-inf"), "end": 0}, {"begin": float("inf"), "end": float("inf")}]
+            resorces_time[resorce] = [{"begin": float("-inf"), "end": 0, "operation": "-1"}, {"begin": float("inf"), "end": float("inf"), "operation": "-1"}]
 
         ub = 0
         for name, operation in self.__sort_operations_by_preferences(sort_function, reverse=reverse).items():
             resorces_time, min_time_mode, choisen_operation, best_mode = self.calc_adding_operations({name: operation}, op_end_times, resorces_time.copy())
             ub = max(ub, min_time_mode)
             op_end_times[choisen_operation] = {"mode": best_mode, "end_time": min_time_mode}
+            for_ga["modes"].append(best_mode.mode_number)
+            for_ga["data"].append(choisen_operation)
 
         run_time = time.time() - start
         solution_data = "solution in {:.10f} sec\ncreated nodes = 0, max queue size = 0".format(run_time)
-        return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data), "feasibles": 100, "cross_solutions": -1, "cross_best_solution": -1}
+        op = [[i["operation"] for i in d if "-1" != i["operation"]] for r,d in resorces_time.items()]
+        cross_solutions = self.ga_check_cross_solution(op)
+        for_ga["modes"] = [m for i, m in sorted(zip(for_ga["data"], for_ga["modes"]), key=lambda pair: int(pair[0]))]
+        for_ga["data"] = [for_ga["data"]]
+        return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data), "feasibles": 100, "cross_solutions": cross_solutions, "cross_best_solution": cross_solutions}, for_ga
 
-    
+
     def __find_UB_greedy_greedy(self):
         """
         find UB using greedy function.
@@ -779,14 +803,14 @@ class Job:
         return dictionary, found UB , how much time its took and draw data
         """
         start = time.time()
-
+        for_ga = {"modes": [], "data": []}
         operations = self.next_operations([])
         operations = [self.operations[op] for op in operations]
         start_points = []
         for operation in operations:
             for mode in operation.modes:
                 start_points.append({"operation": [operation.number], "mode": mode.mode_number})
-        
+
         # try all avialable operation according to the preferences
         best_ub = float("inf")
         best_op_end_times = {}
@@ -795,7 +819,7 @@ class Job:
             op_end_times = {}
             resorces_time = {}
             for resorce in self.resources.keys():
-                resorces_time[resorce] = [{"begin": float("-inf"), "end": 0}, {"begin": float("inf"), "end": float("inf")}]
+                resorces_time[resorce] = [{"begin": float("-inf"), "end": 0, "operation": "-1"}, {"begin": float("inf"), "end": float("inf"), "operation": "-1"}]
             operations = start_point["operation"]
             mode = start_point["mode"]
             while operations:
@@ -803,6 +827,8 @@ class Job:
                 resorces_time, min_time_mode, choisen_operation, best_mode = self.calc_adding_operations(operations, op_end_times, resorces_time.copy(), selected_mode=mode)
                 ub = max(ub, min_time_mode)
                 op_end_times[choisen_operation] = {"mode": best_mode, "end_time": min_time_mode}
+                for_ga["modes"].append(best_mode.mode_number)
+                for_ga["data"].append(str(int(choisen_operation) + 1))
                 operations = self.next_operations(op_end_times.keys())
                 mode = None
 
@@ -812,7 +838,11 @@ class Job:
 
         run_time = time.time() - start
         solution_data = "solution in {:.10f} sec\ncreated nodes = 0, max queue size = 0".format(run_time)
-        return {"value": best_ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(best_op_end_times, solution_data), "feasibles": 100, "cross_solutions": -1, "cross_best_solution": -1}
+        op = [[i["operation"] for i in d if "-1" != i["operation"]] for r,d in resorces_time.items()]
+        cross_solutions = self.ga_check_cross_solution(op)
+        for_ga["modes"] = [m for i, m in sorted(zip(for_ga["data"], for_ga["modes"]), key=lambda pair: int(pair[0]))]
+        for_ga["data"] = [for_ga["data"]]
+        return {"value": best_ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(best_op_end_times, solution_data), "feasibles": 100, "cross_solutions": cross_solutions, "cross_best_solution": cross_solutions}, for_ga
 
 
     def __find_UB_greedy_operations(self, less_modes=False):
@@ -822,10 +852,11 @@ class Job:
         return dictionary, found UB , how much time its took and draw data
         """
         start = time.time()
+        for_ga = {"modes": [], "data": []}
         op_end_times = {}
         resorces_time = {}
         for resorce in self.resources.keys():
-            resorces_time[resorce] = [{"begin": float("-inf"), "end": 0}, {"begin": float("inf"), "end": float("inf")}]
+            resorces_time[resorce] = [{"begin": float("-inf"), "end": 0, "operation": "-1"}, {"begin": float("inf"), "end": float("inf"), "operation": "-1"}]
 
         ub = 0
         operations = self.next_operations([])
@@ -838,11 +869,17 @@ class Job:
             resorces_time, min_time_mode, choisen_operation, best_mode = self.calc_adding_operations(operations, op_end_times, resorces_time.copy())
             ub = max(ub, min_time_mode)
             op_end_times[choisen_operation] = {"mode": best_mode, "end_time": min_time_mode}
+            for_ga["modes"].append(best_mode.mode_number)
+            for_ga["data"].append(choisen_operation)
             operations = self.next_operations(op_end_times.keys())
 
         run_time = time.time() - start
         solution_data = "solution in {:.10f} sec\ncreated nodes = 0, max queue size = 0".format(run_time)
-        return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data), "feasibles": 100, "cross_solutions": -1, "cross_best_solution": -1}
+        op = [[i["operation"] for i in d if "-1" != i["operation"]] for r,d in resorces_time.items()]
+        cross_solutions = self.ga_check_cross_solution(op)
+        for_ga["modes"] = [m for i, m in sorted(zip(for_ga["data"], for_ga["modes"]), key=lambda pair: int(pair[0]))]
+        for_ga["data"] = [for_ga["data"]]
+        return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data), "feasibles": 100, "cross_solutions": cross_solutions, "cross_best_solution": cross_solutions}, for_ga
 
 
     def find_UB_ga(self, operations_order, selected_modes, solve_using_cross_solutions=True):
@@ -857,7 +894,7 @@ class Job:
         resorces_time = {}
         for resorce in self.resources.keys():
             if solve_using_cross_solutions:
-                resorces_time[resorce] = [{"begin": float("-inf"), "end": 0}, {"begin": float("inf"), "end": float("inf")}]
+                resorces_time[resorce] = [{"begin": float("-inf"), "end": 0, "operation": "-1"}, {"begin": float("inf"), "end": float("inf"), "operation": "-1"}]
             else:
                 resorces_time[resorce] = {"begin": 0, "end": 0}
 
@@ -877,12 +914,30 @@ class Job:
 
         run_time = time.time() - start
         if solve_using_cross_solutions:
-            return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data="")}
+            op = [[i["operation"] for i in d if "-1" != i["operation"]] for r,d in resorces_time.items()]
+            cross_solutions = self.ga_check_cross_solution(op)
+            return {"value": ub, "time": run_time, "to_draw": self.init_operations_UB_to_draw(op_end_times, solution_data=""), "cross_solutions": cross_solutions}
         else:
-            return {"value": ub, "time": run_time, "to_draw": None}
+            return {"value": ub, "time": run_time, "to_draw": None, "cross_solutions": False}
 
 
-    def check_cross_solution(self, data_list, modes_list):
+    def ga_check_cross_solution(self, operaions_list):
+        resources_order = {}
+        for resource in operaions_list:
+            for index, operation in enumerate(resource):
+                if operation not in resources_order:
+                    resources_order[operation] = set()
+                resources_order[operation].update(resource[index:])
+
+        for operation, resource_list in resources_order.items():
+            for operation_2 in resource_list:
+                if operation != operation_2 and operation in resources_order[operation_2]:
+                    return True
+
+        return False
+
+
+    def check_cross_solution(self, data_list, modes_list, foo):
         operations_coef = {str(pos):set() for pos in range(1, len(data_list[0]) + 1)}
         copy_data_list = [resources[:] for resources in data_list]
         for res_number, operations in enumerate(copy_data_list, start=1):

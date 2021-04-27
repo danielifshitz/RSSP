@@ -5,6 +5,8 @@ import time
 from sqlite3 import connect
 from branch_and_bound import B_and_B
 from job import Job
+from subprocess import Popen, PIPE
+import sys
 
 def draw_solution(job_operations, choices, title):
     """
@@ -167,7 +169,7 @@ def check_problem_number(problem_number):
 def arguments_parser():
     usage = 'usage...'
     parser = argparse.ArgumentParser(description=usage, prog='rssp.py')
-    parser.add_argument('--ub', choices=['ga', 'greedy', 'both', 'ga_multi_lines', 'ga_one_line'],
+    parser.add_argument('--ub', choices=['ga', 'greedy', 'both', 'ga_multi_lines', 'ga_one_line', 'both_ga'],
         help='run 4 GA or/and 4 different greedy algorithm to calculate problems UB')
     parser.add_argument('-p', '--problem_number', type=check_problem_number, required=True,
         help='the wanted problems number to be solved. for range of problems use "-". to solve multi ranges seperate them by ",". exsample: "1-10, 15, 16, 18-21"')
@@ -195,6 +197,12 @@ def arguments_parser():
         help='for every selected problem run all 16 options')
     parser.add_argument("--complex_ageing", action='store_true',
         help='for every selected problem run all 16 options')
+    parser.add_argument("--parallel", type=int,
+        help='for every selected problem run all 16 options')
+    parser.add_argument("--ignore", type=int,
+        help='for every selected problem run all 16 options')
+    parser.add_argument("--use_greedy", action='store_true',
+        help='for every selected problem run all 16 options')
     subparsers = parser.add_subparsers(dest='sort_x',
         help='sort xi,m,r,l')
     preferences_parser = subparsers.add_parser('pre',
@@ -208,6 +216,44 @@ def arguments_parser():
     return parser.parse_args()
 
 
+def run_main(args, err, f, problem):
+    print("problem number:", problem)
+    t = time.localtime()
+    current_time = time.strftime("%H:%M:%S", t)
+    print("local time:", current_time)
+    SPs_value = 0
+    bounds_greedy_and_ga_data = ""
+    args.problem_number = problem
+    # try:
+    if args.all_flags:
+        layouts = [{"init_resource_by_labels" : False, "sp" : False},
+                {"init_resource_by_labels" : True, "sp" : False},
+                {"init_resource_by_labels" : False, "sp" : True},
+                {"init_resource_by_labels" : True, "sp" : True}]
+        sort_bys = [{"sort_x" : None, "reverse" : False},
+                {"sort_x" : "pre", "reverse" : False},
+                {"sort_x" : "res", "reverse" : False},
+                {"sort_x" : "res", "reverse" : True}]
+        for layout in layouts:
+            for sort_by in sort_bys:
+                args.init_resource_by_labels = layout["init_resource_by_labels"]
+                args.sp = layout["sp"]
+                args.sort_x = sort_by["sort_x"]
+                args.reverse = sort_by["reverse"]
+                solution, SPs_value, bounds_greedy_and_ga_data, solution_value = solve_problem(args)
+                f.write(solution + ", ")
+
+        f.write("{},{},{}\n".format(SPs_value, bounds_greedy_and_ga_data, solution_value))
+
+    else:
+        solution, SPs_value, bounds_greedy_and_ga_data, solution_value = solve_problem(args)
+        f.write("{}, {}, {}, {}\n".format(problem, solution, bounds_greedy_and_ga_data, solution_value))
+    # except Exception as e:
+    #     err_mas = "{}: {}\n".format(problem, e)
+    #     print(err_mas)
+    #     err.write(err_mas)
+
+
 def main():
     print("pid =", getpid())
     args = arguments_parser()
@@ -217,58 +263,47 @@ def main():
         f.write("Problem_ID, |Operations|, |Resources|, Avg(Mi), Avg(Rim), Avg(pref), Avg(Tim), Avg(Him), Avg(Dim), Rim_mean, Rim_stdev, Rim_median, Rim_CV, Rim_range, Cross_resources, Total_run_time, Nodes, Queue_size, MIP_infeasible, LB, UB")
         titles = []
         if args.ub:
-            if args.ub == "greedy" or args.ub == "both":
-                titles += ["greedy_{}".format(i) for i in range(1,6)]
+            if args.ub == "greedy" or args.ub.startswith("both"):
+                titles += ["greedy_{}".format(i) for i in range(1,5)]
 
-            if args.ub.startswith("ga") or args.ub == "both":
+            if args.ub.startswith("ga") or args.ub.startswith("both"):
                 titles += ["GA_{}".format(i) for i in range(1,11)]
 
         for t in titles:
             f.write(", {}, time, feasibles, cross_solutions, cross_best_solution".format(t))
 
         f.write(", solution\n")
+        f.close()
+
+    f = open("solutions.txt", "a")
     problems_list = args.problem_number[:]
+    parallel_jobs = []
     for problems in problems_list:
         problems += ["{}".format(int(problems[0]))]
         start = int(problems[0])
         end = int(problems[1]) + 1
         for problem in range(start, end):
-            print("problem number:", problem)
-            t = time.localtime()
-            current_time = time.strftime("%H:%M:%S", t)
-            print("local time:", current_time)
-            # f.write("{}, ".format(problem))
-            args.problem_number = problem
-            SPs_value = 0
-            bounds_greedy_and_ga_data = ""
-            # try:
-            if args.all_flags:
-                layouts = [{"init_resource_by_labels" : False, "sp" : False},
-                        {"init_resource_by_labels" : True, "sp" : False},
-                        {"init_resource_by_labels" : False, "sp" : True},
-                        {"init_resource_by_labels" : True, "sp" : True}]
-                sort_bys = [{"sort_x" : None, "reverse" : False},
-                        {"sort_x" : "pre", "reverse" : False},
-                        {"sort_x" : "res", "reverse" : False},
-                        {"sort_x" : "res", "reverse" : True}]
-                for layout in layouts:
-                    for sort_by in sort_bys:
-                        args.init_resource_by_labels = layout["init_resource_by_labels"]
-                        args.sp = layout["sp"]
-                        args.sort_x = sort_by["sort_x"]
-                        args.reverse = sort_by["reverse"]
-                        solution, SPs_value, bounds_greedy_and_ga_data, solution_value = solve_problem(args)
-                        f.write(solution + ", ")
+            if args.parallel:
+                while len(parallel_jobs) == args.parallel:
+                    for p in parallel_jobs:
+                        if p.poll() is not None:
+                            parallel_jobs.remove(p)
 
-                f.write("{},{},{}\n".format(SPs_value, bounds_greedy_and_ga_data, solution_value))
+                child_args = ["python"] + sys.argv[:]
+                try:
+                    problem_number_index = child_args.index("-p") + 1
+                except NameError:
+                    problem_number_index = child_args.index("--problem_number") + 1
+                child_args[problem_number_index] = str(problem)
+                child_args[child_args.index("--parallel")] = "--ignore"
+                parallel_jobs.append(Popen(child_args))
 
             else:
-                solution, SPs_value, bounds_greedy_and_ga_data, solution_value = solve_problem(args)
-                f.write("{}, {}, {}, {}\n".format(problem, solution, bounds_greedy_and_ga_data, solution_value))
-            # except Exception as e:
-            #     err_mas = "{}: {}\n".format(problem, e)
-            #     print(err_mas)
-            #     err.write(err_mas)
+                run_main(args, err, f, problem)
+
+    for p in parallel_jobs:
+        p.wait()
+
     f.close()
     err.close()
 
