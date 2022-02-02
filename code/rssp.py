@@ -139,7 +139,10 @@ def solve_problem(args):
         job.get_r_im_range(range_mean=True), job.get_r_im_range(range_stdev=True), job.get_r_im_range(range_median=True), job.get_r_im_range(range_CV=True), job.get_r_im_range(range_range=True), job.cross_resources, end - start, nodes, queue_size, MIP_infeasible)
     bounds_greedy_and_ga_data = "{}, {}".format(job.LB, job.UB)
     for ub_solution in job.UBs.values():
-        bounds_greedy_and_ga_data += ", {}, {:.3f}, {:.3f}, {}, {}".format(ub_solution["value"], ub_solution["time"], ub_solution["feasibles"], ub_solution["cross_solutions"], ub_solution["cross_best_solution"])
+        if args.ub in ["ga_one_line_cross_final_solution", "ga_one_line_cross_best_solution"]:
+            bounds_greedy_and_ga_data += ", {}, {}, {:.3f}, {:.3f}, {:.3f}, {}, {}, {}".format(ub_solution["value"], ub_solution["cross_value"], ub_solution["time"], ub_solution["cross_time"], ub_solution["feasibles"], ub_solution["cross_resources"], ub_solution["improved_generation"] ,ub_solution["cross_best_solution"])
+        else:
+            bounds_greedy_and_ga_data += ", {}, {:.3f}, {:.3f}, {}, {}, {}".format(ub_solution["value"], ub_solution["time"], ub_solution["feasibles"], ub_solution["cross_resources"], ub_solution["improved_generation"] ,ub_solution["cross_best_solution"])
 
     return solution, SPs_value, bounds_greedy_and_ga_data, solution_value
 
@@ -169,7 +172,7 @@ def check_problem_number(problem_number):
 def arguments_parser():
     usage = 'usage...'
     parser = argparse.ArgumentParser(description=usage, prog='rssp.py')
-    parser.add_argument('--ub', choices=['ga', 'greedy', 'both', 'ga_multi_lines', 'ga_one_line', 'both_ga'],
+    parser.add_argument('--ub', choices=['ga1_res', "ga1_op", 'ga2s', 'ga2m', 'ga2s_all', 'ga2s_final', 'ga2s_select_1', 'ga2s_select_quarter', 'ga2s_select_all', 'ga2s_ga2s_all', 'greedy', 'greedy_ga2s_all', 'greedy_ga2s_ga2s_all'],
         help='run 4 GA or/and 4 different greedy algorithm to calculate problems UB')
     parser.add_argument('-p', '--problem_number', type=check_problem_number, required=True,
         help='the wanted problems number to be solved. for range of problems use "-". to solve multi ranges seperate them by ",". exsample: "1-10, 15, 16, 18-21"')
@@ -263,14 +266,17 @@ def main():
         f.write("Problem_ID, |Operations|, |Resources|, Avg(Mi), Avg(Rim), Avg(pref), Avg(Tim), Avg(Him), Avg(Dim), Rim_mean, Rim_stdev, Rim_median, Rim_CV, Rim_range, Cross_resources, Total_run_time, Nodes, Queue_size, MIP_infeasible, LB, UB")
         titles = []
         if args.ub:
-            if args.ub == "greedy" or args.ub.startswith("both"):
+            if args.ub == "greedy" or args.ub.startswith("greedy"):
                 titles += ["greedy_{}".format(i) for i in range(1,5)]
 
-            if args.ub.startswith("ga") or args.ub.startswith("both"):
+            elif args.ub.startswith("ga") or "ga" in args.ub:
                 titles += ["GA_{}".format(i) for i in range(1,11)]
 
         for t in titles:
-            f.write(", {}, time, feasibles, cross_solutions, cross_best_solution".format(t))
+            if args.ub in ["ga2s_final", "ga2s_select_1"]:
+                f.write(", {title}, cross_{title}, time, cross_time, feasibles, cross_resources, improved_generation, cross_best_solution".format(title=t))
+            else:
+                f.write(", {title}, time, feasibles, cross_resources, improved_generation, cross_best_solution".format(title=t))
 
         f.write(", solution\n")
         f.close()
