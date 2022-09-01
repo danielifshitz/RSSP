@@ -10,6 +10,7 @@ class Bellman_Ford:
     def __init__(self, vertices):
         self.V = vertices # No. of vertices = num of ops + 2
         self.graph = [] # list to store the graph
+        self.dist = None
 
 
     def addEdge(self, u, v, w):
@@ -45,4 +46,5 @@ class Bellman_Ford:
             if dist[u] != minus_inf and dist[u] + w > dist[v]:
                 return
 
+        self.dist = dist
         return dist[dest]

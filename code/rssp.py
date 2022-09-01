@@ -112,9 +112,9 @@ def draw_rectangle(start_y, end_y, value, width=2, text=""):
 def solve_problem(args):
     job = Job(args.problem_number, cplex_solution=args.solution_type, ub=args.ub, sort_x=args.sort_x, reverse=args.sort_x and args.reverse, repeate=args.repeate, create_csv=args.output_to_csv, 
         timeout=args.timeout, mutation_chance=args.mutation_chance, changed_mutation=args.changed_mutation, ageing=args.ageing, complex_ageing=args.complex_ageing)
-    print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB, "\nLB =", job.LB)
+    print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB, "\nLB =", job.LB, "\nLB_res =", job.LB_res)
     start = time.time()
-    if job.UB == job.LB or args.solution_type == "None":
+    if job.UB == job.LB_res or args.solution_type == "None":
         print("LB = UB")
         if args.graph_solution:
             draw_collected_data(job.draw_UB["operations"], job.draw_UB["title"], job.draw_UB["choices_modes"])
@@ -125,7 +125,7 @@ def solve_problem(args):
         BB = B_and_B(job.cplex["obj"], job.cplex["ub"], job.cplex["lb"], job.cplex["ctype"],
                     job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
                     job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
-                    job.x_names, job.LB, job.UB, args.sp)
+                    job.x_names, job.LB_res, job.UB, args.sp)
 
         choices, nodes, queue_size, SPs_value, solution_value, MIP_infeasible = BB.solve_algorithem(args.init_resource_by_labels,
                                                                                                     disable_prints=False,
@@ -135,14 +135,20 @@ def solve_problem(args):
     if args.graph_solution and choices and solution_data:
         draw_solution(job.operations.items(), choices, solution_data)
 
-    solution = "{}, {}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {}, {:.3f}, {}, {}, {}".format(len(job.operations), len(job.resources), job.get_mean_modes(), job.get_mean_r_im(), job.count_pref, job.avg_t_im(), job.avg_h_im(), job.avg_d_im(),
-        job.get_r_im_range(range_mean=True), job.get_r_im_range(range_stdev=True), job.get_r_im_range(range_median=True), job.get_r_im_range(range_CV=True), job.get_r_im_range(range_range=True), job.cross_resources, end - start, nodes, queue_size, MIP_infeasible)
-    bounds_greedy_and_ga_data = "{}, {}".format(job.LB, job.UB)
+    solution = "{}, {}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {}, {:.3f}, {}, {}, {}, {}, {}".format(len(job.operations), len(job.resources), job.get_mean_modes(), job.get_mean_r_im(), job.count_pref, job.avg_t_im(), job.avg_h_im(), job.avg_d_im(),
+                                                                                                                                                   job.get_r_im_range(range_mean=True), job.get_r_im_range(range_stdev=True), job.get_r_im_range(range_median=True), job.get_r_im_range(range_CV=True),
+                                                                                                                                                   job.get_r_im_range(range_range=True), job.cross_resources, end - start, nodes, queue_size, MIP_infeasible, job.longest_preferences_path,
+                                                                                                                                                   job.mean_preferences_path)
+    bounds_greedy_and_ga_data = "{}, {}, {}".format(job.LB, job.LB_res, job.UB)
+    if job.greedy_all:
+        bounds_greedy_and_ga_data += ", {}".format(job.greedy_all)
     for ub_solution in job.UBs.values():
         if args.ub in ["ga_one_line_cross_final_solution", "ga_one_line_cross_best_solution"]:
             bounds_greedy_and_ga_data += ", {}, {}, {:.3f}, {:.3f}, {:.3f}, {}, {}, {}".format(ub_solution["value"], ub_solution["cross_value"], ub_solution["time"], ub_solution["cross_time"], ub_solution["feasibles"], ub_solution["cross_resources"], ub_solution["improved_generation"] ,ub_solution["cross_best_solution"])
         else:
-            bounds_greedy_and_ga_data += ", {}, {:.3f}, {:.3f}, {}, {}, {}".format(ub_solution["value"], ub_solution["time"], ub_solution["feasibles"], ub_solution["cross_resources"], ub_solution["improved_generation"] ,ub_solution["cross_best_solution"])
+            solution_origin = str(ub_solution["origin"])
+            solution_origin = solution_origin.replace(" ", "").replace("{", "").replace("}", "").replace("'", "").replace(":", "=").replace(",", ";")
+            bounds_greedy_and_ga_data += ", {}, {:.3f}, {:.3f}, {}, {}, {}, {}".format(ub_solution["value"], ub_solution["time"], ub_solution["feasibles"], ub_solution["cross_resources"], ub_solution["improved_generation"], solution_origin ,ub_solution["cross_best_solution"])
 
     return solution, SPs_value, bounds_greedy_and_ga_data, solution_value
 
@@ -263,20 +269,22 @@ def main():
     err = f = open("errors.txt", "a")
     f = open("solutions.txt", "a")
     if stat("solutions.txt").st_size == 0:
-        f.write("Problem_ID, |Operations|, |Resources|, Avg(Mi), Avg(Rim), Avg(pref), Avg(Tim), Avg(Him), Avg(Dim), Rim_mean, Rim_stdev, Rim_median, Rim_CV, Rim_range, Cross_resources, Total_run_time, Nodes, Queue_size, MIP_infeasible, LB, UB")
+        f.write("Problem_ID, |Operations|, |Resources|, Avg(Mi), Avg(Rim), Avg(pref), Avg(Tim), Avg(Him), Avg(Dim), Rim_mean, Rim_stdev, Rim_median, Rim_CV, Rim_range, Cross_resources, Total_run_time, Nodes, Queue_size, MIP_infeasible, longest_preceding, mean_preceding, LB, LB_res, UB")
         titles = []
         if args.ub:
             if args.ub == "greedy" or args.ub.startswith("greedy"):
-                titles += ["greedy_{}".format(i) for i in range(1,5)]
+                titles += ["operations", "loaded_shortest_modes", "modes", "precedence_forward", "precedence_backwards", "precedence_sons", "precedence_all", "precedence_time_forward", "greedy_sum_precedences", "greedy_by_best_precedences"]
+                f.write(", greedy_all")
+                #titles += ["greedy_{}".format(i) for i in range(1,8)]
 
-            elif args.ub.startswith("ga") or "ga" in args.ub:
+            if args.ub.startswith("ga") or "ga" in args.ub:
                 titles += ["GA_{}".format(i) for i in range(1,11)]
 
         for t in titles:
             if args.ub in ["ga2s_final", "ga2s_select_1"]:
                 f.write(", {title}, cross_{title}, time, cross_time, feasibles, cross_resources, improved_generation, cross_best_solution".format(title=t))
             else:
-                f.write(", {title}, time, feasibles, cross_resources, improved_generation, cross_best_solution".format(title=t))
+                f.write(", {title}, time, feasibles, cross_resources, improved_generation, origin, cross_best_solution".format(title=t))
 
         f.write(", solution\n")
         f.close()

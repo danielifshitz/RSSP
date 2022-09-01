@@ -56,4 +56,12 @@ class Operation:
         return the shortest mode time of this operation
         return: number
         """
-        return min(self.modes, key=lambda mode: mode.tim).tim
+        return self.get_shortest_mode().tim
+
+
+    def get_shortest_mode(self):
+        """
+        return the shortest mode of this operation
+        return: Mode
+        """
+        return min(self.modes, key=lambda mode: mode.tim)
