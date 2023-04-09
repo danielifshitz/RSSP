@@ -1,5 +1,4 @@
 class Resource:
-
     """
     this class present a resource that used by operations.
     each resource have name(number), size which is how many times
@@ -11,7 +10,6 @@ class Resource:
         self.number = number
         self.size = 0
         self.usage = {}
-
 
     def add_mode(self, operation, mode, start_time, duration):
         """
@@ -33,7 +31,6 @@ class Resource:
                 return
         self.size += 1
 
-
     def get_usage_duration(self, operation, mode):
         """
         return the duration of the usage of this resource by the given operation and mode
@@ -44,7 +41,6 @@ class Resource:
         op_mode = operation + ',' + mode
         return self.usage[op_mode]["duration"]
 
-
     def get_usage_start_time(self, operation, mode):
         """
         return the start_time of the usage of this resource by the given operation and mode
@@ -54,3 +50,13 @@ class Resource:
         """
         op_mode = operation + ',' + mode
         return self.usage[op_mode]["start_time"]
+
+    def get_usage_finish_time(self, operation, mode):
+        """
+        return the finish_time of the usage of this resource by the given operation and mode
+        operation : string, operatoin number
+        mode: string, mode number
+        return: int
+        """
+        op_mode = operation + ',' + mode
+        return self.usage[op_mode]["start_time"] + self.usage[op_mode]["duration"]

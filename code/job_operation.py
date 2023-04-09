@@ -1,7 +1,7 @@
 from mode import Mode
 
-class Operation:
 
+class Operation:
     """
     this class present an operation that need to be done to finish a job.
     for every operation we will save its name(number), modes, ann all resource that all modes need.
@@ -12,11 +12,10 @@ class Operation:
         self.modes = []
         self.all_resources = {}
 
-
     def add_mode(self, mode_number, resource, start, dur):
         """
         add mode to operation with the needed resource for the mode.
-        if it is a new mode number, create him.
+        if it is a new mode number, create it.
         save the resource in all_resources list.
         mode_number: string - the number of the mode
         resource: Resource - a resource that the mode need
@@ -50,14 +49,12 @@ class Operation:
 
         return None
 
-
     def get_min_tim(self):
         """
         return the shortest mode time of this operation
         return: number
         """
         return self.get_shortest_mode().tim
-
 
     def get_shortest_mode(self):
         """

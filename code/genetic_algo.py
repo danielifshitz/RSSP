@@ -475,21 +475,21 @@ class GA:
 
         if improved_method in ["ga2s_final", "ga2s_select_1"]:
             step_time = time.time()
-            solution_collected_data_cross = []
+            self.solution_collected_data_cross = []
             for son, data in zip(self.population, self.solution_collected_data):
                 solution_data = fitness_function(son["data"], son["modes"], solve_using_cross_solutions=True)
                 if solution_data["value"] < son["makespan"]:
                     son["makespan"] = solution_data["value"]
-                    solution_collected_data_cross.append(solution_data)
+                    self.solution_collected_data_cross.append(solution_data)
                 else:
-                    solution_collected_data_cross.append(data)
+                    self.solution_collected_data_cross.append(data)
                 
-            cross_population, solution_collected_data_cross = self.next_generation(self.population, solution_collected_data_cross)
+            _, self.solution_collected_data_cross = self.next_generation()
             cross_run_time = run_time + time.time() - step_time
-            cross_best_solution = self.is_cross_solution_in_best(cross_population, solution_collected_data_cross)
-            return {"value": solution_collected_data_cross[0]["value"], "cross_value": solution_collected_data_cross[0]["value"],
+            cross_best_solution = self.is_cross_solution_in_best()
+            return {"value": self.solution_collected_data_cross[0]["value"], "cross_value": self.solution_collected_data_cross[0]["value"],
                 "generations": self.current_generation, "time": run_time, "cross_time": cross_run_time, "to_draw": solution_draw_data, 
-                "feasibles": feasibles, "cross_resources": solution_collected_data_cross[0]["cross_resources"], 
+                "feasibles": feasibles, "cross_resources": self.solution_collected_data_cross[0]["cross_resources"],
                 "cross_best_solution": cross_best_solution, "improved_generation": ga_improved_generation}
         
         return {"value": self.solution_collected_data[0]["value"], "generations": self.current_generation, 

@@ -1,3 +1,4 @@
+from sqlite3 import OperationalError
 from os import getpid, listdir, stat
 import matplotlib.pyplot as plt
 import argparse
@@ -105,13 +106,41 @@ def draw_rectangle(start_y, end_y, value, width=2, text=""):
 
     y = [start_y + 0.01, start_y + 0.01, end_y - 0.01, end_y - 0.01, start_y + 0.01]
     x = [value["start"], value["start"] + value["duration"], value["start"] + value["duration"], value["start"], value["start"]]
-    plt.plot(x,y, linestyle=linestyle, linewidth=width)
+    plt.plot(x, y, linestyle=linestyle, linewidth=width)
     plt.text(value["start"] + 0.1, start_y + 0.03, text, fontsize=8)
 
 
+def save_solutions(name, problem_id, solution):
+    conn = connect('data.db')
+    c = conn.cursor()
+    c.execute(f"SELECT Solution FROM BestSolution where Problem_ID = {problem_id} AND Solution_type = '{name}'")
+    query = c.fetchall()
+    if not query or query[0][0] > solution['value']:
+        if query:
+            c.execute(f"DELETE FROM BestSolution WHERE Problem_ID = {problem_id} AND Solution_type = '{name}'")
+            c.execute(f"DELETE FROM Solution WHERE Problem_ID = {problem_id} AND Solution_type = '{name}'")
+            conn.commit()
+
+        add_best_solution = f"insert into BestSolution values ('{name}', {problem_id}, {solution['value']}, " \
+                            f"{round(solution['time'], 2)}, {solution['cross_resources']}, {solution['feasibles']}, " \
+                            f"{solution['improved_generation']}, {solution['origin'].get('greedy', 0)}, " \
+                            f"{solution['origin'].get('ga', 0)})"
+        c.execute(add_best_solution)
+
+        for (op_name, op_values), mode in zip(solution['to_draw']['operations'].items(), solution['to_draw']['choices_modes']):
+            mode = mode.split("\n")[1][4:]  # mode = 'operation #\nmode #' -> split to remove the operaation part, [4,:] to remove the 'mode'
+            add_solution = f"insert into Solution values ('{name}', {problem_id}, {op_name}, " \
+                           f"{mode}, {op_values['start']})"
+            c.execute(add_solution)
+
+        conn.commit()
+
+    conn.close()
+
+
 def solve_problem(args):
-    job = Job(args.problem_number, cplex_solution=args.solution_type, ub=args.ub, sort_x=args.sort_x, reverse=args.sort_x and args.reverse, repeate=args.repeate, create_csv=args.output_to_csv, 
-        timeout=args.timeout, mutation_chance=args.mutation_chance, changed_mutation=args.changed_mutation, ageing=args.ageing, complex_ageing=args.complex_ageing)
+    job = Job(args.problem_number, cplex_solution=args.solution_type, ub=args.ub, sort_x=args.sort_x, reverse=args.sort_x and args.reverse, repeat=args.repeate, create_csv=args.output_to_csv,
+              timeout=args.timeout, mutation_chance=args.mutation_chance, changed_mutation=args.changed_mutation, ageing=args.ageing, complex_ageing=args.complex_ageing)
     print("|Xi,m,r,l| =", len(job.x_names), "\n|equations| =", len(job.cplex["rownames"]), "\nPrediction UB =", job.UB, "\nLB =", job.LB, "\nLB_res =", job.LB_res)
     start = time.time()
     if job.UB == job.LB_res or args.solution_type == "None":
@@ -123,9 +152,9 @@ def solve_problem(args):
     else:
         print("starting solve B&B")
         BB = B_and_B(job.cplex["obj"], job.cplex["ub"], job.cplex["lb"], job.cplex["ctype"],
-                    job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
-                    job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
-                    job.x_names, job.LB_res, job.UB, args.sp)
+                     job.cplex["colnames"], job.cplex["rhs"], job.cplex["rownames"],
+                     job.cplex["sense"], job.cplex["rows"], job.cplex["cols"], job.cplex["vals"],
+                     job.x_names, job.LB_res, job.UB, args.sp)
 
         choices, nodes, queue_size, SPs_value, solution_value, MIP_infeasible = BB.solve_algorithem(args.init_resource_by_labels,
                                                                                                     disable_prints=False,
@@ -136,13 +165,21 @@ def solve_problem(args):
         draw_solution(job.operations.items(), choices, solution_data)
 
     solution = "{}, {}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {}, {:.3f}, {}, {}, {}, {}, {}".format(len(job.operations), len(job.resources), job.get_mean_modes(), job.get_mean_r_im(), job.count_pref, job.avg_t_im(), job.avg_h_im(), job.avg_d_im(),
-                                                                                                                                                   job.get_r_im_range(range_mean=True), job.get_r_im_range(range_stdev=True), job.get_r_im_range(range_median=True), job.get_r_im_range(range_CV=True),
-                                                                                                                                                   job.get_r_im_range(range_range=True), job.cross_resources, end - start, nodes, queue_size, MIP_infeasible, job.longest_preferences_path,
-                                                                                                                                                   job.mean_preferences_path)
+                                                                                                                                                       job.get_r_im_range(range_mean=True), job.get_r_im_range(range_stdev=True), job.get_r_im_range(range_median=True), job.get_r_im_range(
+            range_cv=True),
+                                                                                                                                                       job.get_r_im_range(range_range=True), job.cross_resources, end - start, nodes, queue_size, MIP_infeasible, job.longest_preferences_path,
+                                                                                                                                                       job.mean_preferences_path)
     bounds_greedy_and_ga_data = "{}, {}, {}".format(job.LB, job.LB_res, job.UB)
     if job.greedy_all:
         bounds_greedy_and_ga_data += ", {}".format(job.greedy_all)
-    for ub_solution in job.UBs.values():
+    for ub_name, ub_solution in job.UBs.items():
+        while True:
+            try:
+                save_solutions(ub_name, args.problem_number, ub_solution)
+                break
+            except OperationalError as e:
+                print(e)
+
         if args.ub in ["ga_one_line_cross_final_solution", "ga_one_line_cross_best_solution"]:
             bounds_greedy_and_ga_data += ", {}, {}, {:.3f}, {:.3f}, {:.3f}, {}, {}, {}".format(ub_solution["value"], ub_solution["cross_value"], ub_solution["time"], ub_solution["cross_time"], ub_solution["feasibles"], ub_solution["cross_resources"], ub_solution["improved_generation"] ,ub_solution["cross_best_solution"])
         else:
@@ -160,25 +197,31 @@ def check_problem_number(problem_number):
     """
     problem_number = problem_number.replace(" ", "")
     problems = problem_number.split(",")
-    conn = connect('data.db')
-    c = conn.cursor()
-    for index, problem in enumerate(problems):
-        problem = problem.split("-")
-        problems[index] = problem
-        c.execute("SELECT * FROM OpMoRe where Problem_ID = {0}".format(problem[-1]))
-        query = c.fetchall()
-        if not query:
-            msg = "Problem number %r not exist" % problem
-            raise argparse.ArgumentTypeError(msg)
+    while True:
+        try:
+            conn = connect('data.db')
+            c = conn.cursor()
+            for index, problem in enumerate(problems):
+                problem = problem.split("-")
+                problems[index] = problem
+                c.execute("SELECT * FROM OpMoRe where Problem_ID = {0}".format(problem[-1]))
+                query = c.fetchall()
+                if not query:
+                    msg = "Problem number %r not exist" % problem
+                    raise argparse.ArgumentTypeError(msg)
 
-    conn.close()
+            conn.close()
+            break
+        except OperationalError as e:
+            print(e)
+
     return problems
 
 
 def arguments_parser():
     usage = 'usage...'
     parser = argparse.ArgumentParser(description=usage, prog='rssp.py')
-    parser.add_argument('--ub', choices=['ga1_res', "ga1_op", 'ga2s', 'ga2m', 'ga2s_all', 'ga2s_final', 'ga2s_select_1', 'ga2s_select_quarter', 'ga2s_select_all', 'ga2s_ga2s_all', 'greedy', 'greedy_ga2s_all', 'greedy_ga2s_ga2s_all'],
+    parser.add_argument('--ub', choices=['ga1_res', "ga1_op", 'ga2s', 'ga2m', 'ga2s_all', 'ga2s_final', 'ga2s_select_1', 'ga2s_select_quarter', 'ga2s_select_all', 'ga2s_ga2s_all', 'greedy', 'greedy_ga2s_all', 'greedy_ga2s_ga2s_all', 'none'],
         help='run 4 GA or/and 4 different greedy algorithm to calculate problems UB')
     parser.add_argument('-p', '--problem_number', type=check_problem_number, required=True,
         help='the wanted problems number to be solved. for range of problems use "-". to solve multi ranges seperate them by ",". exsample: "1-10, 15, 16, 18-21"')
@@ -225,7 +268,7 @@ def arguments_parser():
     return parser.parse_args()
 
 
-def run_main(args, err, f, problem):
+def run_main(args, f, problem):
     print("problem number:", problem)
     t = time.localtime()
     current_time = time.strftime("%H:%M:%S", t)
@@ -257,23 +300,19 @@ def run_main(args, err, f, problem):
     else:
         solution, SPs_value, bounds_greedy_and_ga_data, solution_value = solve_problem(args)
         f.write("{}, {}, {}, {}\n".format(problem, solution, bounds_greedy_and_ga_data, solution_value))
-    # except Exception as e:
-    #     err_mas = "{}: {}\n".format(problem, e)
-    #     print(err_mas)
-    #     err.write(err_mas)
 
 
 def main():
     print("pid =", getpid())
     args = arguments_parser()
-    err = f = open("errors.txt", "a")
+    args.greedys = ["operations", "loaded_shortest_modes", "modes", "precedence_forward", "precedence_backwards", "precedence_sons", "precedence_all", "precedence_time_forward", "greedy_sum_precedences", "greedy_by_best_precedences"]
     f = open("solutions.txt", "a")
     if stat("solutions.txt").st_size == 0:
         f.write("Problem_ID, |Operations|, |Resources|, Avg(Mi), Avg(Rim), Avg(pref), Avg(Tim), Avg(Him), Avg(Dim), Rim_mean, Rim_stdev, Rim_median, Rim_CV, Rim_range, Cross_resources, Total_run_time, Nodes, Queue_size, MIP_infeasible, longest_preceding, mean_preceding, LB, LB_res, UB")
         titles = []
         if args.ub:
             if args.ub == "greedy" or args.ub.startswith("greedy"):
-                titles += ["operations", "loaded_shortest_modes", "modes", "precedence_forward", "precedence_backwards", "precedence_sons", "precedence_all", "precedence_time_forward", "greedy_sum_precedences", "greedy_by_best_precedences"]
+                titles += args.greedys
                 f.write(", greedy_all")
                 #titles += ["greedy_{}".format(i) for i in range(1,8)]
 
@@ -308,19 +347,18 @@ def main():
                     problem_number_index = child_args.index("-p") + 1
                 except NameError:
                     problem_number_index = child_args.index("--problem_number") + 1
+
                 child_args[problem_number_index] = str(problem)
                 child_args[child_args.index("--parallel")] = "--ignore"
                 parallel_jobs.append(Popen(child_args))
 
             else:
-                run_main(args, err, f, problem)
+                run_main(args, f, problem)
 
     for p in parallel_jobs:
         p.wait()
 
     f.close()
-    err.close()
-
 
 if __name__ == '__main__':
     main()
